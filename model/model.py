@@ -130,41 +130,43 @@ class DarkNet53(Layer):
         return skip1, skip2, x
 
 
+class UpSampleConv(Layer):
+    def __init__(self, n_filters):
+        super(UpSampleConv, self).__init__()
+        self.DBL1 = CNNBlock(n_filters, kernel_size=(1, 1))
+        self.DBL2 = CNNBlock(n_filters, kernel_size=(1, 1))
+        self.DBL3 = CNNBlock(n_filters * 2)
+        self.UpSample = UpSampling2D(2)
+        self.Concat = Concatenate(axis=-1)
+
+    def call(self, inputs, training=False):
+        if not tf.is_tensor(inputs):
+            x = self.DBL1(inputs[0], training=training)
+            x = self.UpSample(x)
+            x = self.Concat([x, inputs[1]])
+        else:
+            x = inputs
+        x = self.DBL2(x, training=training)         # 512, 1x1
+        x = self.DBL3(x, training=training)         # 1024, 3x3
+        x = self.DBL1(x, training=training)         # 512, 1x1
+        x = self.DBL3(x, training=training)         # 1024, 3x3
+        x = self.DBL1(x, training=training)         # 512, 1x1
+
+        return x
+
+
 class ScalePrediction(Layer):
     def __init__(self, n_filters, num_classes):
         super(ScalePrediction, self).__init__()
         self.num_classes = num_classes
-        self.DBL0 = CNNBlock(n_filters // 2, kernel_size=(1, 1))
-        self.DBL1 = CNNBlock(n_filters // 2, kernel_size=(1, 1))
-        self.DBL2 = CNNBlock(n_filters)
+        self.DBL = CNNBlock(n_filters)
         self.conv = CNNBlock(3 * (num_classes + 5), kernel_size=(1, 1), bn_act=False)
 
     def call(self, inputs, training=False):
-        x = self.DBL0(inputs, training=training)   # 512, 1x1
-        x = self.DBL2(x, training=training)        # 1024, 3x3
-        x = self.DBL1(x, training=training)        # 512, 1x1
-        x = self.DBL2(x, training=training)        # 1024, 3x3
-        x = self.DBL1(x, training=training)        # 512, 1x1
+        y = self.DBL(inputs, training=training)     # 13x13x1024/26x26x512/52x52x256, 3x3
+        y = self.conv(y, training=training)         # 13x13x255/26x26x255/52x52x255, 1x1
 
-        y = self.DBL2(x, training=training)        # 1024, 3x3
-        y = self.conv(y, training=training)        # 255, 1x1
-
-        return x, y
-
-
-class ScaleUpSample(Layer):
-    def __init__(self, n_filters):
-        super(ScaleUpSample, self).__init__()
-        self.DBL = CNNBlock(n_filters, kernel_size=(1, 1))
-        self.UpS = UpSampling2D(2)
-        self.Concat = Concatenate(axis=-1)
-
-    def call(self, inputs, training=False):
-        x = self.DBL(inputs[0], training=training)
-        x = self.UpS(x)
-        x = self.Concat([x, inputs[1]])
-
-        return x
+        return y
 
 
 class YOLOv3(Model):
@@ -172,40 +174,37 @@ class YOLOv3(Model):
         super(YOLOv3, self).__init__()
         self.num_classes = num_classes
         self.DN53 = DarkNet53()
-        self.SPr_13 = ScalePrediction(1024, num_classes)
-        self.SUp_13_26 = ScaleUpSample(256)
-        self.SPr_26 = ScalePrediction(512, num_classes)
-        self.SUp_26_52 = ScaleUpSample(128)
-        self.SPr_52 = ScalePrediction(256, num_classes)
+        self.Conv512 = UpSampleConv(512)
+        self.SPr13 = ScalePrediction(1024, num_classes)
+        self.UpS1326Conv256 = UpSampleConv(256)
+        self.SPr26 = ScalePrediction(512, num_classes)
+        self.UpS2652Conv128 = UpSampleConv(128)
+        self.SPr52 = ScalePrediction(256, num_classes)
 
     def call(self, inputs, training=False):
         skip1, skip2, x = self.DN53.call(inputs, training=training)
-        x, y_lbbox = self.SPr_13(x, training=training)
-
-        x = self.SUp_13_26([x, skip2], training=training)
-        x, y_mbbox = self.SPr_26(x, training=training)
-
-        x = self.SUp_26_52([x, skip1], training=training)
-        x, y_sbbox = self.SPr_52(x, training=training)
+        x = self.Conv512(x, training=training)
+        y_lbbox = self.SPr13(x, training=training)
+        x = self.UpS1326Conv256([x, skip2], training=training)
+        y_mbbox = self.SPr26(x, training=training)
+        x = self.UpS2652Conv128([x, skip1], training=training)
+        y_sbbox = self.SPr52(x, training=training)
 
         return [y_lbbox, y_mbbox, y_sbbox]
 
-    def model(self):
-        x = Input(shape=(416, 416, 3))
+    def model(self, inputs):
+        x = Input(inputs)
         return Model(inputs=[x], outputs=self.call(x))
 
 
 if __name__ == "__main__":
     num_classes = 80
     IMAGE_SIZE = 416
-    input_tensor = Input((IMAGE_SIZE, IMAGE_SIZE, 3))
+    image_shape = (IMAGE_SIZE, IMAGE_SIZE, 3)
 
-    model = YOLOv3(num_classes).model()
-    out = model(input_tensor)
+    model = YOLOv3(num_classes).model(image_shape)
+
+    input_tensor = Input(image_shape)
+    output = model(input_tensor)
 
     print(model.summary())
-    model.layers
-    assert model(input_tensor)[0].shape == (2, 3, IMAGE_SIZE//32, IMAGE_SIZE//32, num_classes + 5)
-    assert model(input_tensor)[1].shape == (2, 3, IMAGE_SIZE//16, IMAGE_SIZE//16, num_classes + 5)
-    assert model(input_tensor)[2].shape == (2, 3, IMAGE_SIZE//8, IMAGE_SIZE//8, num_classes + 5)
-    print("Success!")
