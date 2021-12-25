@@ -10,11 +10,6 @@ from tensorflow.keras import Input, Model
 from tensorflow.keras.regularizers import l2
 
 
-# References
-# https://towardsdatascience.com/yolo-v3-object-detection-53fb7d3bfe6b
-# https://towardsdatascience.com/model-sub-classing-and-custom-training-loop-from-scratch-in-tensorflow-2-cc1d4f10fb4e
-
-
 """
 Information about architecture config:
 Tuple is structured by (filters, kernel_size, stride) 
@@ -23,32 +18,6 @@ List is structured by "B" indicating a residual block followed by the number of 
 "S" is for scale prediction block and computing the yolo loss
 "U" is for upsampling the feature map and concatenating with a previous layer
 """
-config = [
-    (32, 3, 1),
-    (64, 3, 2),
-    ["B", 1],
-    (128, 3, 2),
-    ["B", 2],
-    (256, 3, 2),
-    ["B", 8],
-    (512, 3, 2),
-    ["B", 8],
-    (1024, 3, 2),
-    ["B", 4],  # To this point is Darknet-53
-    (512, 1, 1),
-    (1024, 3, 1),
-    "S",
-    (256, 1, 1),
-    "U",
-    (256, 1, 1),
-    (512, 3, 1),
-    "S",
-    (128, 1, 1),
-    "U",
-    (128, 1, 1),
-    (256, 3, 1),
-    "S",
-]
 
 
 class CNNBlock(Layer):
@@ -134,6 +103,9 @@ class UpSampleConv(Layer):
     def __init__(self, n_filters):
         super(UpSampleConv, self).__init__()
         self.DBL1 = CNNBlock(n_filters, kernel_size=(1, 1))
+        # DBL2 is after concatenation, so the no of input filters to DBL2 is different than
+        # that of DBL1, and accordingly the initialisation happens. Hence, there are two
+        # objects as DBL1 & DBL2 even though n_filters & kernel_size are same for both.
         self.DBL2 = CNNBlock(n_filters, kernel_size=(1, 1))
         self.DBL3 = CNNBlock(n_filters * 2)
         self.UpSample = UpSampling2D(2)
