@@ -1,6 +1,5 @@
 """
 Implementation of YOLOv3 architecture
-Implementation of YOLOv3 architecture
 """
 from abc import ABC
 import tensorflow as tf
