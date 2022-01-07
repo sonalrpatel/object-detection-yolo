@@ -42,7 +42,8 @@ def get_random_data(annotation_line, input_shape, max_boxes=20, proc_img=True):
 
 
 def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
-    """Preprocess true boxes to training input format
+    """
+    Preprocess true boxes to training input format
 
     Parameters
     ----------
@@ -58,22 +59,21 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
 
     """
     assert (true_boxes[..., 4] < num_classes).all(), 'class id must be less than num_classes'
-    num_anchors = len(anchors)
     num_scales = 3
+    num_anchors = len(anchors)
     num_anchors_per_scale = num_anchors // num_scales  # default setting
     anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
-    true_boxes = np.array(true_boxes, dtype='float32')
     input_shape = np.array(input_shape, dtype='int32')
+    true_boxes = np.array(true_boxes, dtype='float32')
+    # batch size
+    batch_size = true_boxes.shape[0]
 
-    # (x_min, y_min, x_max, y_max) is converted to (x, y, w, h) relative to input shape
+    # (x_min, y_min, x_max, y_max) is converted to (x_center, y_center, width, height) relative to input shape
     boxes_xy = (true_boxes[..., 0:2] + true_boxes[..., 2:4]) // 2
     boxes_wh = true_boxes[..., 2:4] - true_boxes[..., 0:2]
     true_boxes[..., 0:2] = boxes_xy / input_shape[::-1]
     true_boxes[..., 2:4] = boxes_wh / input_shape[::-1]
-
-    # batch size
-    batch_size = true_boxes.shape[0]
 
     # grid shapes for 3 scales
     grid_shapes = [input_shape // {0: 32, 1: 16, 2: 8}[s] for s in range(num_scales)]
@@ -88,6 +88,7 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
     anchor_mins = -anchor_maxes
     # find anchor area
     anchor_area = anchors[..., 0] * anchors[..., 1]
+
     # number of non zero boxes
     num_nz_boxes = (np.count_nonzero(boxes_wh, axis=1).sum(axis=1)/2).astype('int32')
 
@@ -119,18 +120,21 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
         # y_true shape:
         # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
         for box_no, anchor_idx in enumerate(best_anchor_indices):
-            for scale_idx in range(num_scales):
-                if anchor_idx in anchor_mask[scale_idx]:
-                    scale = grid_shapes[scale_idx][0]
-                    x, y, width, height, class_label = true_boxes[batch_no, box_no, 0:5]
+            # [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+            scale_idx, scale, anchor_on_scale = [(x, grid_shapes[x][0], anchor_mask[x].index(anchor_idx))
+                                                 for x in range(len(anchor_mask)) if anchor_idx in anchor_mask[x]][0]
 
-                    i = np.floor(y * scale).astype('int32')
-                    j = np.floor(x * scale).astype('int32')
-                    anchor_on_scale = anchor_mask[scale_idx].index(anchor_idx)    # anchor_idx % num_anchors_per_scale
+            # dimensions of a single box
+            x, y, width, height, class_label = true_boxes[batch_no, box_no, 0:5]
 
-                    y_true[scale_idx][batch_no, i, j, anchor_on_scale, 0:4] = np.array([x, y, width, height])
-                    y_true[scale_idx][batch_no, i, j, anchor_on_scale, 4] = 1
-                    y_true[scale_idx][batch_no, i, j, anchor_on_scale, 5 + int(class_label)] = 1
+            # index of the grid cell having the center of the bbox
+            i = np.floor(y * scale).astype('int32')
+            j = np.floor(x * scale).astype('int32')
+
+            # fill y_true
+            y_true[scale_idx][batch_no, i, j, anchor_on_scale, 0:4] = np.array([x, y, width, height])
+            y_true[scale_idx][batch_no, i, j, anchor_on_scale, 4] = 1
+            y_true[scale_idx][batch_no, i, j, anchor_on_scale, 5 + int(class_label)] = 1
 
     return y_true
 
