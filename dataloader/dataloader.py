@@ -8,17 +8,39 @@
 # TODO: complete the dataloader file
 
 import os
+from abc import ABC
+
+import cv2
 import numpy as np
 import pandas as pd
-import cv2
 import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow import keras
 from PIL import Image
 from configs import *
 
 
+def read_class_names(class_file_name):
+    # loads class name from a file
+    names = {}
+    with open(class_file_name, 'r') as data:
+        for ID, name in enumerate(data):
+            names[ID] = name.strip('\n')
+    return names
+
+
+def get_anchors(anchors_path):
+    """loads the anchors from a file"""
+    with open(anchors_path) as f:
+        anchors = f.readline()
+    anchors = [float(x) for x in anchors.split(',')]
+    return np.array(anchors).reshape(-1, 2)
+
+
 class YOLODataset(object):
     # Dataset preprocess implementation
-    def __init__(self, mode):
+    def __init__(self, mode=None):
+        super(YOLODataset, self).__init__()
         self.mode = mode
         self.data_dir = DATA_DIR
         self.image_dir = IMAGE_DIR
@@ -26,124 +48,253 @@ class YOLODataset(object):
         self.image_size = IMAGE_SIZE
         self.batch_size = TRAIN_BATCH_SIZE
         self.data_aug = TRAIN_DATA_AUG
+        self.annotation_path = TRAIN_ANNOT_PATH
 
-        self.train_input_sizes = TRAIN_INPUT_SIZE
+        self.train_input_size = TRAIN_INPUT_SIZE
         self.strides = np.array(YOLO_STRIDES)
         self.scales = np.array(YOLO_SCALES)
-        self.classes = self.read_class_names(DATA_CLASSES)
-        self.num_classes = len(self.classes)
-        self.anchors = YOLO_ANCHORS
+        self.classes = read_class_names(CLASSES_PATH)
+        self.num_classes = self.classes.__len__()
+        self.anchors = get_anchors(ANCHORS_PATH)
         self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
         self.max_bbox_per_scale = YOLO_MAX_BBOX_PER_SCALE
 
         self.img_bboxes_pairs = self.load_img_bboxes_pairs()
-        self.num_samples = len(self.img_bboxes_pairs)
+        self.num_samples = self.img_bboxes_pairs.__len__()
         self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.batch_count = 0
 
-    def read_class_names(self, data_classes):
-        names = {}
-        return names
-
     def load_img_bboxes_pairs(self):
         """
+        Load annotations
         Customize this function as per your dataset
-        # return: list of pairs of image path and corresponding bounding boxes
+        # return:
+            list of pairs of image path and corresponding bounding boxes
         # example:
-            [['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000007.jpg',
-             [[0.639, 0.5675675675675675, 0.718, 0.8408408408408409, 6.0]]]]
+            [['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
+                                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
+             ['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
         """
-        img_bboxes_pairs = []
+        # img_bboxes_pairs = []
+        # data_df = pd.read_csv(self.data_dir + self.mode + ".csv", header=None)
+        # data_df.columns = ['Image', 'label']
+        #
+        # for n in range(len(data_df)):
+        #     img_path = os.path.join(self.image_dir, data_df['Image'][n])
+        #     lbl_path = os.path.join(self.label_dir, data_df['label'][n])
+        #     bboxes = np.roll(np.loadtxt(fname=lbl_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
+        #     img_bboxes_pairs.append([img_path, bboxes])
 
-        data_df = pd.read_csv(self.data_dir + self.mode + ".csv", header=None)
-        data_df.columns = ['Image', 'label']
+        with open(self.annotation_path) as f:
+            lines = f.readlines()
 
-        for n in range(len(data_df)):
-            img_path = os.path.join(self.image_dir, data_df['Image'][n])
-            lbl_path = os.path.join(self.label_dir, data_df['label'][n])
-            bboxes = np.roll(np.loadtxt(fname=lbl_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
-            img_bboxes_pairs.append([img_path, bboxes])
+        img_bboxes_pairs = [[line.split()[0], np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
+                            for line in lines]
 
         return img_bboxes_pairs
 
-    def preprocess_true_boxes(self, bboxes):
-        OUTPUT_LEVELS = len(self.strides)
 
-        label = [np.zeros((self.train_output_sizes[i], self.train_output_sizes[i], self.anchor_per_scale,
-                           5 + self.num_classes)) for i in range(OUTPUT_LEVELS)]
-        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(OUTPUT_LEVELS)]
-        bbox_count = np.zeros((OUTPUT_LEVELS,))
+class YOL0DataGenerator(keras.utils.Sequence):
+    # Data generation
+    def __init__(self):
+        super(YOL0DataGenerator, self).__init__()
+        self.data_dir = DATA_DIR
+        self.image_dir = IMAGE_DIR
+        self.label_dir = LABEL_DIR
+        self.image_size = IMAGE_SIZE
+        self.batch_size = TRAIN_BATCH_SIZE
+        self.data_aug = TRAIN_DATA_AUG
 
-        for bbox in bboxes:
-            bbox_coor = bbox[:4]
-            bbox_class_ind = bbox[4]
+        self.train_input_size = TRAIN_INPUT_SIZE
+        self.strides = np.array(YOLO_STRIDES)
+        self.scales = np.array(YOLO_SCALES)
+        self.classes = read_class_names(CLASSES_PATH)
+        self.num_classes = self.classes.__len__()
+        self.anchors = get_anchors(ANCHORS_PATH)    # YOLO_ANCHORS
+        self.num_scales = YOLO_NUM_SCALES
+        self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
+        self.max_bbox_per_scale = YOLO_MAX_BBOX_PER_SCALE
 
-            onehot = np.zeros(self.num_classes, dtype=np.float)
-            onehot[bbox_class_ind] = 1.0
-            uniform_distribution = np.full(self.num_classes, 1.0 / self.num_classes)
-            deta = 0.01
-            smooth_onehot = onehot * (1 - deta) + deta * uniform_distribution
+        self.img_bboxes_pairs = YOLODataset().img_bboxes_pairs
+        self.num_samples = self.img_bboxes_pairs.__len__()
+        self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
+        self.batch_count = 0
+        self.all_indexes = np.arange(self.num_samples)
+        self.shuffle = True
 
-            bbox_xywh = np.concatenate([(bbox_coor[2:] + bbox_coor[:2]) * 0.5, bbox_coor[2:] - bbox_coor[:2]], axis=-1)
-            bbox_xywh_scaled = 1.0 * bbox_xywh[np.newaxis, :] / self.strides[:, np.newaxis]
+    def __len__(self):
+        """Denotes the number of batches per epoch
+        """
+        return self.num_batches
 
-            iou = []
-            exist_positive = False
-            for i in range(OUTPUT_LEVELS):  # range(3):
-                anchors_xywh = np.zeros((self.anchor_per_scale, 4))
-                anchors_xywh[:, 0:2] = np.floor(bbox_xywh_scaled[i, 0:2]).astype(np.int32) + 0.5
-                anchors_xywh[:, 2:4] = self.anchors[i]
+    def __getitem__(self, index):
+        """
+        Generate one batch of data when the batch corresponding to a given index
+        is called, the generator executes the __getitem__ method to generate it.
+        """
+        # Generate indexes for a batch
+        batch_indexes = list(self.all_indexes[index * self.batch_size: (index + 1) * self.batch_size])
 
-                iou_scale = bbox_iou(bbox_xywh_scaled[i][np.newaxis, :], anchors_xywh)
-                iou.append(iou_scale)
-                iou_mask = iou_scale > 0.3
+        # Generate data
+        X, y = self.__data_generation(batch_indexes)
 
-                if np.any(iou_mask):
-                    xind, yind = np.floor(bbox_xywh_scaled[i, 0:2]).astype(np.int32)
+        return X, y
 
-                    label[i][yind, xind, iou_mask, :] = 0
-                    label[i][yind, xind, iou_mask, 0:4] = bbox_xywh
-                    label[i][yind, xind, iou_mask, 4:5] = 1.0
-                    label[i][yind, xind, iou_mask, 5:] = smooth_onehot
+    def on_epoch_end(self):
+        """
+        Shuffle indexes after each epoch
+        Set augmentation mode as per global AUGMENTATION_MODE
+        """
+        # Shuffle the dataset
+        if self.shuffle:
+            np.random.shuffle(self.indexes)
 
-                    bbox_ind = int(bbox_count[i] % self.max_bbox_per_scale)
-                    bboxes_xywh[i][bbox_ind, :4] = bbox_xywh
-                    bbox_count[i] += 1
+    def process_data(self, img_bboxes_pair, max_boxes=20, proc_img=True):
+        """
+        Random preprocessing for real-time data augmentation
+        """
+        image = Image.open(img_bboxes_pair[0])
+        iw, ih = image.size
+        h, w = self.image_size
+        box = img_bboxes_pair[1]
 
-                    exist_positive = True
+        # resize image
+        scale = min(w / iw, h / ih)
+        nw = int(iw * scale)
+        nh = int(ih * scale)
+        dx = (w - nw) // 2
+        dy = (h - nh) // 2
 
-            if not exist_positive:
-                best_anchor_ind = np.argmax(np.array(iou).reshape(-1), axis=-1)
-                best_detect = int(best_anchor_ind / self.anchor_per_scale)
-                best_anchor = int(best_anchor_ind % self.anchor_per_scale)
-                xind, yind = np.floor(bbox_xywh_scaled[best_detect, 0:2]).astype(np.int32)
+        image_data = Image.new('RGB', (w, h), (128, 128, 128))
+        if proc_img:
+            image = image.resize((nw, nh), Image.BICUBIC)
+            image_data.paste(image, (dx, dy))
+            image_data = np.array(image_data) / 255.
 
-                label[best_detect][yind, xind, best_anchor, :] = 0
-                label[best_detect][yind, xind, best_anchor, 0:4] = bbox_xywh
-                label[best_detect][yind, xind, best_anchor, 4:5] = 1.0
-                label[best_detect][yind, xind, best_anchor, 5:] = smooth_onehot
+        # correct boxes
+        box_data = np.zeros((max_boxes, 5))
+        if box.shape[0] > 0:
+            np.random.shuffle(box)
+            if box.shape[0] > max_boxes:
+                box = box[:max_boxes]
+            box[:, [0, 2]] = box[:, [0, 2]] * scale + dx
+            box[:, [1, 3]] = box[:, [1, 3]] * scale + dy
+            box_data[:box.shape[0]] = box
 
-                bbox_ind = int(bbox_count[best_detect] % self.max_bbox_per_scale)
-                bboxes_xywh[best_detect][bbox_ind, :4] = bbox_xywh
-                bbox_count[best_detect] += 1
+        return image_data, box_data
 
-        label_sbbox, label_mbbox, label_lbbox = label
-        sbboxes, mbboxes, lbboxes = bboxes_xywh
-        return label_sbbox, label_mbbox, label_lbbox, sbboxes, mbboxes, lbboxes
+    def preprocess_true_boxes(self, true_boxes):
+        """
+        Preprocess true boxes to training input format
+
+        Parameters
+        ----------
+        true_boxes: array, shape=(m, T, 5)
+            Absolute x_min, y_min, x_max, y_max, class_id relative to input_shape.
+        input_shape: array-like, hw, multiples of 32
+        anchors: array, shape=(N, 2), wh
+        num_classes: integer
+
+        Returns
+        -------
+        y_true: list of array, shape like yolo_outputs, xywh are relative value
+
+        """
+        assert (true_boxes[..., 4] < self.num_classes).all(), 'class id must be less than num_classes'
+        anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+        input_shape = np.array(self.image_size, dtype='int32')
+
+        # (x_min, y_min, x_max, y_max) is converted to (x_center, y_center, width, height) relative to input shape
+        boxes_xy = (true_boxes[..., 0:2] + true_boxes[..., 2:4]) // 2
+        boxes_wh = true_boxes[..., 2:4] - true_boxes[..., 0:2]
+        true_boxes[..., 0:2] = boxes_xy / input_shape[::-1]
+        true_boxes[..., 2:4] = boxes_wh / input_shape[::-1]
+
+        # grid shapes for 3 scales
+        grid_shapes = [input_shape // {0: 32, 1: 16, 2: 8}[s] for s in range(self.num_scales)]
+
+        # initialise y_true
+        # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
+        y_true = [np.zeros((self.batch_size, grid_shapes[s][0], grid_shapes[s][1], anchor_mask[s].__len__(),
+                            5 + self.num_classes), dtype='float32') for s in range(self.num_scales)]
+
+        # Expand dim to apply broadcasting
+        anchors = np.expand_dims(self.anchors, 0)
+        anchor_maxes = anchors / 2.
+        anchor_mins = -anchor_maxes
+        # find anchor area
+        anchor_area = anchors[..., 0] * anchors[..., 1]
+
+        # number of non zero boxes
+        num_nz_boxes = (np.count_nonzero(boxes_wh, axis=1).sum(axis=1) / 2).astype('int32')
+
+        for b_idx in range(self.batch_size):
+            # Discard zero rows
+            box_wh = boxes_wh[b_idx, 0:num_nz_boxes[b_idx]]
+            if box_wh.shape[0] == 0:
+                continue
+
+            # Expand dim to apply broadcasting
+            box_wh = np.expand_dims(box_wh, -2)
+            box_maxes = box_wh / 2.
+            box_mins = -box_maxes
+            # find box area
+            box_area = box_wh[..., 0] * box_wh[..., 1]
+
+            # find intersection area
+            intersect_mins = np.maximum(box_mins, anchor_mins)
+            intersect_maxes = np.minimum(box_maxes, anchor_maxes)
+            intersect_wh = np.maximum(intersect_maxes - intersect_mins, 0.)
+            intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
+
+            # find iou
+            iou_anchors = intersect_area / (box_area + anchor_area - intersect_area)
+
+            # Find best anchor for each true box
+            best_anchor_indices = np.argmax(iou_anchors, axis=-1)
+
+            # y_true shape:
+            # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
+            for box_no, anchor_idx in enumerate(best_anchor_indices):
+                # [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+                scale_idx, scale, anchor_on_scale = [(x, tuple(grid_shapes[x]), anchor_mask[x].index(anchor_idx))
+                                                     for x in range(anchor_mask.__len__())
+                                                     if anchor_idx in anchor_mask[x]][0]
+
+                # dimensions of a single box
+                x, y, width, height, class_label = true_boxes[b_idx, box_no, 0:5]
+
+                # index of the grid cell having the center of the bbox
+                i = np.floor(y * scale[0]).astype('int32')
+                j = np.floor(x * scale[1]).astype('int32')
+
+                # fill y_true
+                y_true[scale_idx][b_idx, i, j, anchor_on_scale, 0:4] = np.array([x, y, width, height])
+                y_true[scale_idx][b_idx, i, j, anchor_on_scale, 4] = 1
+                y_true[scale_idx][b_idx, i, j, anchor_on_scale, 5 + int(class_label)] = 1
+
+        return y_true
+
+    def __data_generation(self, batch_indexes):
+        """Generates data containing batch_size samples
+        """
+        image_data = []
+        box_data = []
+        for i in batch_indexes:
+            image, box = self.process_data(self.img_bboxes_pairs[i])
+            box = np.floor(box / 2.5)
+            image_data.append(image)
+            box_data.append(box)
+
+        image_data = np.array(image_data)
+        box_data = np.array(box_data)
+        y_true = self.preprocess_true_boxes(box_data)
+
+        return image_data, y_true
 
 
 if __name__ == "__main__":
-    # annot = load_annotations()
 
-    boxes = np.array(['302, 280, 572, 568, 25', '355, 509, 422, 624, 26', '406, 342, 640, 640, 0'])
-
-    bboxes = np.array([list(map(int, box.split(','))) for box in boxes])
-
-    # boxes = [box.reshape((-1, 5)) for box in boxes]
-    boxes_xy = [0.5 * (box[:, 3:5] + box[:, 1:3]) for box in bboxes]
-    boxes_wh = [box[:, 3:5] - box[:, 1:3] for box in bboxes]
-    boxes_xy = [boxxy / orig_size for boxxy in boxes_xy]
-    boxes_wh = [boxwh / orig_size for boxwh in boxes_wh]
-    boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(bboxes)]
-
-    print(len(annot))
+    ydg = YOL0DataGenerator()
+    len = ydg.__len__()
+    X, y = ydg.__getitem__(0)

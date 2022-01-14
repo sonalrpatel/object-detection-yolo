@@ -121,15 +121,15 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
         # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
         for box_no, anchor_idx in enumerate(best_anchor_indices):
             # [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
-            scale_idx, scale, anchor_on_scale = [(x, grid_shapes[x][0], anchor_mask[x].index(anchor_idx))
+            scale_idx, scale, anchor_on_scale = [(x, tuple(grid_shapes[x]), anchor_mask[x].index(anchor_idx))
                                                  for x in range(len(anchor_mask)) if anchor_idx in anchor_mask[x]][0]
 
             # dimensions of a single box
             x, y, width, height, class_label = true_boxes[batch_no, box_no, 0:5]
 
             # index of the grid cell having the center of the bbox
-            i = np.floor(y * scale).astype('int32')
-            j = np.floor(x * scale).astype('int32')
+            i = np.floor(y * scale[0]).astype('int32')
+            j = np.floor(x * scale[1]).astype('int32')
 
             # fill y_true
             y_true[scale_idx][batch_no, i, j, anchor_on_scale, 0:4] = np.array([x, y, width, height])
