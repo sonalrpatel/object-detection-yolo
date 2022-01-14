@@ -30,17 +30,19 @@ def read_class_names(class_file_name):
 
 
 def get_anchors(anchors_path):
-    """loads the anchors from a file"""
+    """
+    loads the anchors from a file
+    """""
     with open(anchors_path) as f:
         anchors = f.readline()
     anchors = [float(x) for x in anchors.split(',')]
     return np.array(anchors).reshape(-1, 2)
 
 
-class YOLODataset(object):
+class YoloDataset(object):
     # Dataset preprocess implementation
     def __init__(self, mode=None):
-        super(YOLODataset, self).__init__()
+        super(YoloDataset, self).__init__()
         self.mode = mode
         self.data_dir = DATA_DIR
         self.image_dir = IMAGE_DIR
@@ -68,13 +70,13 @@ class YOLODataset(object):
         """
         Load annotations
         Customize this function as per your dataset
-        # return:
+        :return:
             list of pairs of image path and corresponding bounding boxes
-        # example:
+            example:
             [['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
                                                                             [0.529, 0.856, 0.125, 0.435, 4.0]]]
              ['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
-        """
+        """""
         # img_bboxes_pairs = []
         # data_df = pd.read_csv(self.data_dir + self.mode + ".csv", header=None)
         # data_df.columns = ['Image', 'label']
@@ -94,10 +96,10 @@ class YOLODataset(object):
         return img_bboxes_pairs
 
 
-class YOL0DataGenerator(keras.utils.Sequence):
+class YoloDataGenerator(keras.utils.Sequence):
     # Data generation
     def __init__(self):
-        super(YOL0DataGenerator, self).__init__()
+        super(YoloDataGenerator, self).__init__()
         self.data_dir = DATA_DIR
         self.image_dir = IMAGE_DIR
         self.label_dir = LABEL_DIR
@@ -131,7 +133,7 @@ class YOL0DataGenerator(keras.utils.Sequence):
         """
         Generate one batch of data when the batch corresponding to a given index
         is called, the generator executes the __getitem__ method to generate it.
-        """
+        """""
         # Generate indexes for a batch
         batch_indexes = list(self.all_indexes[index * self.batch_size: (index + 1) * self.batch_size])
 
@@ -144,7 +146,7 @@ class YOL0DataGenerator(keras.utils.Sequence):
         """
         Shuffle indexes after each epoch
         Set augmentation mode as per global AUGMENTATION_MODE
-        """
+        """""
         # Shuffle the dataset
         if self.shuffle:
             np.random.shuffle(self.indexes)
@@ -152,7 +154,7 @@ class YOL0DataGenerator(keras.utils.Sequence):
     def process_data(self, img_bboxes_pair, max_boxes=20, proc_img=True):
         """
         Random preprocessing for real-time data augmentation
-        """
+        """""
         image = Image.open(img_bboxes_pair[0])
         iw, ih = image.size
         h, w = self.image_size
@@ -186,20 +188,12 @@ class YOL0DataGenerator(keras.utils.Sequence):
     def preprocess_true_boxes(self, true_boxes):
         """
         Preprocess true boxes to training input format
-
-        Parameters
-        ----------
-        true_boxes: array, shape=(m, T, 5)
+        :param
+            true_boxes: array, shape=(m, T, 5)
             Absolute x_min, y_min, x_max, y_max, class_id relative to input_shape.
-        input_shape: array-like, hw, multiples of 32
-        anchors: array, shape=(N, 2), wh
-        num_classes: integer
-
-        Returns
-        -------
-        y_true: list of array, shape like yolo_outputs, xywh are relative value
-
-        """
+        :returns: 
+            y_true: list of array, shape like yolo_outputs, xywh are relative value
+        """""
         assert (true_boxes[..., 4] < self.num_classes).all(), 'class id must be less than num_classes'
         anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape = np.array(self.image_size, dtype='int32')
@@ -276,8 +270,9 @@ class YOL0DataGenerator(keras.utils.Sequence):
         return y_true
 
     def __data_generation(self, batch_indexes):
-        """Generates data containing batch_size samples
         """
+        Generates data containing batch_size samples
+        """""
         image_data = []
         box_data = []
         for i in batch_indexes:
@@ -295,6 +290,6 @@ class YOL0DataGenerator(keras.utils.Sequence):
 
 if __name__ == "__main__":
 
-    ydg = YOL0DataGenerator()
+    ydg = YoloDataGenerator()
     len = ydg.__len__()
     X, y = ydg.__getitem__(0)
