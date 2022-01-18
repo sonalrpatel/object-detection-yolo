@@ -35,6 +35,7 @@
 * https://itnext.io/implementing-yolo-v3-in-tensorflow-tf-slim-c3c55ff59dbe
 * https://sheng-fang.github.io/2020-04-29-implement_yolo/ 
 * model build - data loading - train - predict
+* https://pythonrepo.com/repo/Qucy-yolo3-tf2 (good)
 * https://pylessons.com/YOLOv3-TF2-introduction/
 * https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
 * https://github.com/pythonlessons/YOLOv3-object-detection-tutorial/tree/master/YOLOv3-custom-training
