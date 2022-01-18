@@ -10,33 +10,13 @@
 import os
 from abc import ABC
 
-import cv2
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 from PIL import Image
+from utils.utils import *
 from configs import *
-
-
-def read_class_names(class_file_name):
-    # loads class name from a file
-    names = {}
-    with open(class_file_name, 'r') as data:
-        for ID, name in enumerate(data):
-            names[ID] = name.strip('\n')
-    return names
-
-
-def get_anchors(anchors_path):
-    """
-    loads the anchors from a file
-    """""
-    with open(anchors_path) as f:
-        anchors = f.readline()
-    anchors = [float(x) for x in anchors.split(',')]
-    return np.array(anchors).reshape(-1, 2)
 
 
 class YoloDataset(object):
@@ -117,7 +97,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
         self.max_bbox_per_scale = YOLO_MAX_BBOX_PER_SCALE
 
-        self.img_bboxes_pairs = YOLODataset().img_bboxes_pairs
+        self.img_bboxes_pairs = YoloDataset().img_bboxes_pairs
         self.num_samples = self.img_bboxes_pairs.__len__()
         self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.batch_count = 0

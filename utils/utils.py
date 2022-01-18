@@ -3,9 +3,32 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
+def read_class_names(class_file_name):
+    """
+    loads class name from a file
+    :param class_file_name: 
+    :return: class names 
+    """""
+    names = {}
+    with open(class_file_name, 'r') as data:
+        for ID, name in enumerate(data):
+            names[ID] = name.strip('\n')
+    return names
+
+
+def get_anchors(anchors_path):
+    """
+    loads the anchors from a file
+    """""
+    with open(anchors_path) as f:
+        anchors = f.readline()
+    anchors = [float(x) for x in anchors.split(',')]
+    return np.array(anchors).reshape(-1, 2)
+
+
 def box_iou(b1, b2):
     """
-    Return iou tensor
+    returns iou tensor
     :param
         b1: tensor, shape=(i1,...,iN, 4), xywh
         b2: tensor, shape=(j, 4), xywh
@@ -38,3 +61,4 @@ def box_iou(b1, b2):
     iou = intersect_area / (b1_area + b2_area - intersect_area)
 
     return iou
+
