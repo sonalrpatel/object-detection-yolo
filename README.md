@@ -1,4 +1,4 @@
-## References
+## References ##
 
 ### YOLOv1
 * https://www.analyticsvidhya.com/blog/2018/12/practical-guide-object-detection-yolo-framewor-python/
@@ -30,16 +30,16 @@
 * https://github.com/aladdinpersson/Machine-Learning-Collection/tree/master/ML/Pytorch/object_detection/YOLOv3
 
 ### YOLOv3: implementation in tensorflow
-* pre trained model - predict
+* "pre trained model - predict"
 * https://machinelearningspace.com/yolov3-tensorflow-2-part-1/
 * https://itnext.io/implementing-yolo-v3-in-tensorflow-tf-slim-c3c55ff59dbe
 * https://sheng-fang.github.io/2020-04-29-implement_yolo/ 
-* model build - data loading - train - predict
-* https://pythonrepo.com/repo/Qucy-yolo3-tf2 (good)
+* "model build - data loading - train - predict"
+* https://pythonrepo.com/repo/Qucy-yolo3-tf2 (good details for concepts-model/loss/bbox)
 * https://pylessons.com/YOLOv3-TF2-introduction/
 * https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
 * https://github.com/pythonlessons/YOLOv3-object-detection-tutorial/tree/master/YOLOv3-custom-training
-* https://github.com/experiencor/keras-yolo3
+* https://github.com/experiencor/keras-yolo3 (good class organisation, refer for generator+aug)
 * https://github.com/mystic123/tensorflow-yolo-v3
 
 ### Model Subclassing
