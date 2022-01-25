@@ -33,7 +33,7 @@ class CNNBlock(Layer):
         self.use_bn_act = bn_act
         self.do_down_sample = down_sample
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=False, **kwargs):
         if self.do_down_sample:
             x = self.zp(inputs)
             x = self.conv_s2(x)
@@ -54,7 +54,7 @@ class ResidualBlock(Layer):
         self.use_residual = use_residual
         self.n_repeats = n_repeats
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=False, **kwargs):
         x = inputs
         for i in range(self.n_repeats):
             y = self.conv_k1(x, training=training)
@@ -80,7 +80,7 @@ class DarkNet53(Layer):
         self.DBL6 = CNNBlock(1024, down_sample=True)
         self.RES5 = ResidualBlock(1024, n_repeats=4)
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=False, **kwargs):
         x = self.DBL1(inputs, training=training)
         x = self.DBL2(x, training=training)
         x = self.RES1(x, training=training)
@@ -110,7 +110,7 @@ class UpSampleConv(Layer):
         self.UpSample = UpSampling2D(2)
         self.Concat = Concatenate(axis=-1)
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=False, **kwargs):
         if not tf.is_tensor(inputs):
             x = self.DBL1(inputs[0], training=training)
             x = self.UpSample(x)
@@ -133,7 +133,7 @@ class ScalePrediction(Layer):
         self.DBL = CNNBlock(n_filters)
         self.conv = CNNBlock(3 * (num_classes + 5), kernel_size=(1, 1), bn_act=False)
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=False, **kwargs):
         y = self.DBL(inputs, training=training)     # 13x13x1024/26x26x512/52x52x256, 3x3
         y = self.conv(y, training=training)         # 13x13x255/26x26x255/52x52x255, 1x1
 
@@ -152,7 +152,7 @@ class YOLOv3(Model):
         self.UpS2652Conv128 = UpSampleConv(128)
         self.SPr52 = ScalePrediction(256, num_classes)
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=False, **kwargs):
         skip1, skip2, x = self.DN53.call(inputs, training=training)
         x = self.Conv512(x, training=training)
         y_lbbox = self.SPr13(x, training=training)

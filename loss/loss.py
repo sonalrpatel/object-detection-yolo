@@ -1,3 +1,4 @@
+# coding=utf-8
 """
 Implementation of Yolo Loss Function similar to the one in Yolov3 paper,
 the difference from what I can tell is I use CrossEntropy for the classes
@@ -22,7 +23,6 @@ class YoloLoss(object):
 
     def loss(self, y_pred, y_true):
         # -----------------------------------------------------------#
-        #   split predictions and ground truth, args is list contains [*model_body.output, *y_true]
         #   y_true is a list，contains 3 feature maps，shape are:
         #   (m,13,13,3,85)
         #   (m,26,26,3,85)
@@ -88,48 +88,36 @@ class YoloLoss(object):
             # -----------------------------------------------------------#
             #   create a dynamic array to save negative samples
             # -----------------------------------------------------------#
-            ignore_mask = tf.TensorArray(K.dtype(y_true[0]), size=1, dynamic_size=True)
-            object_mask_bool = K.cast(object_mask, 'bool')
+            # ignore_mask = tf.TensorArray(K.dtype(y_true[0]), size=1, dynamic_size=True)
+            ignore_mask = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+
+            def loop_cond(idx, ignore_mask):
+                return tf.less(idx, tf.cast(m, tf.int32))
+
+            # idx: to loop over N images in a batch
+            def loop_body(idx, ignore_mask):
+                # shape: [13, 13, 3, 4] & [13, 13, 3]  ==>  [V, 4]
+                # V: num of true gt box of each image in a batch
+                valid_true_boxes = tf.boolean_mask(y_true[l][idx, ..., 0:4], tf.cast(object_mask[idx, ..., 0], 'bool'))
+
+                # shape: [13, 13, 3, 4] & [V, 4] ==> [13, 13, 3, V]
+                iou = box_iou(pred_box[idx], valid_true_boxes)
+
+                # shape: [13, 13, 3]
+                best_iou = tf.reduce_max(iou, axis=-1)
+
+                # shape: [13, 13, 3]
+                ignore_mask_tmp = tf.cast(best_iou < 0.5, tf.float32)
+
+                # finally will be shape: [N, 13, 13, 3]
+                ignore_mask = ignore_mask.write(idx, ignore_mask_tmp)
+
+                return idx + 1, ignore_mask
+
+            _, ignore_mask = tf.while_loop(cond=loop_cond, body=loop_body, loop_vars=[0, ignore_mask])
 
             # -----------------------------------------------------------#
-            #   define a inner function to locate ignored samples
-            # -----------------------------------------------------------#
-            def loop_body(b, ignore_mask):
-                # -----------------------------------------------------------#
-                #   retrieve ground truth's bounding box's coordinates (x,y) and (w,h)=> shape (n, 4)
-                # -----------------------------------------------------------#
-                true_box = tf.boolean_mask(y_true[l][b, ..., 0:4], object_mask_bool[b, ..., 0])
-
-                # -----------------------------------------------------------#
-                #   calculate iou
-                #   pred_box shape => (13,13,3,4)
-                #   true_box shape => (n,4)
-                #   iou between predicted box and true box, shape => (13,13,3,n)
-                # -----------------------------------------------------------#
-                iou = box_iou(pred_box[b], true_box)
-
-                # -----------------------------------------------------------#
-                #   best_iou shape => (13,13,3) means best iou for every anchor
-                # -----------------------------------------------------------#
-                best_iou = K.max(iou, axis=-1)
-
-                # -----------------------------------------------------------#
-                #   if best iou less than ignore threshold treat it as ignored sample
-                #   add to ignore mask for calculate no object loss latter
-                #   if best iou is greater or equal than ignore threshold, we think it's
-                #   close to the true box will not treat it as a ignored sample
-                # -----------------------------------------------------------#
-                ignore_mask = ignore_mask.write(b, K.cast(best_iou < self.ignore_thresh, K.dtype(true_box)))
-                return b + 1, ignore_mask
-
-            # -----------------------------------------------------------#
-            #   call while loop to find out ignored samples in every images one by one
-            # -----------------------------------------------------------#
-            _, ignore_mask = tf.while_loop(lambda b, *args: b < m, loop_body, [0, ignore_mask])
-
-            # -----------------------------------------------------------#
-            #   ignore_mask shape => (m,13,13,3)
-            #   (m,13,13,3) =>  (m,13,13,3,1)
+            #   expand the dimension to [N, 13, 13, 3, 1]
             # -----------------------------------------------------------#
             ignore_mask = ignore_mask.stack()
             ignore_mask = K.expand_dims(ignore_mask, -1)
@@ -143,7 +131,9 @@ class YoloLoss(object):
             # -----------------------------------------------------------#
             #   update raw_true_wh if no object update wh to 0 otherwise remain it as before
             # -----------------------------------------------------------#
-            raw_true_wh = K.switch(object_mask, raw_true_wh, K.zeros_like(raw_true_wh))
+            # raw_true_wh = K.switch(object_mask, raw_true_wh, K.zeros_like(raw_true_wh))
+
+            raw_true_wh = tf.where(condition=tf.math.is_nan(raw_true_wh), x=tf.zeros_like(raw_true_wh), y=raw_true_wh)
 
             # -----------------------------------------------------------#
             #   calculate box loss scale, x and y both between 0-1
@@ -154,7 +144,7 @@ class YoloLoss(object):
             box_loss_scale = 2 - y_true[l][..., 2:3] * y_true[l][..., 3:4]
 
             # -----------------------------------------------------------#
-            #   use binary_crossentropy calculate xy loss
+            #   calculate xy loss using binary_crossentropy
             # -----------------------------------------------------------#
             xy_loss = object_mask * box_loss_scale * K.binary_crossentropy(raw_true_xy, raw_pred[..., 0:2],
                                                                            from_logits=True)
@@ -165,14 +155,20 @@ class YoloLoss(object):
             wh_loss = object_mask * box_loss_scale * 0.5 * K.square(raw_true_wh - raw_pred[..., 2:4])
 
             # -----------------------------------------------------------#
+            #   confidence loss
             #   if there is true box，calculate cross entropy loss between predicted score and 1
             #   if there no box，calculate cross entropy loss between predicted score and 0
             #   and will ignore the samples if best_iou<ignore_thresh
             # -----------------------------------------------------------#
-            confidence_loss = object_mask * K.binary_crossentropy(object_mask, raw_pred[..., 4:5], from_logits=True) + \
-                              (1 - object_mask) * K.binary_crossentropy(object_mask, raw_pred[..., 4:5],
-                                                                        from_logits=True) * ignore_mask
+            conf_pos_mask = object_mask
+            conf_neg_mask = (1 - object_mask) * ignore_mask
+            conf_loss_pos = conf_pos_mask * K.binary_crossentropy(object_mask, raw_pred[..., 4:5], from_logits=True)
+            conf_loss_neg = conf_neg_mask * K.binary_crossentropy(object_mask, raw_pred[..., 4:5], from_logits=True)
+            confidence_loss = conf_loss_pos + conf_loss_neg
 
+            # -----------------------------------------------------------#
+            #   class loss
+            # -----------------------------------------------------------#
             class_loss = object_mask * K.binary_crossentropy(true_class_probs, raw_pred[..., 5:], from_logits=True)
 
             # -----------------------------------------------------------#
@@ -199,13 +195,15 @@ if __name__ == "__main__":
     anchors_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
     input_shape = (416, 416)
 
-    # image_shape = K.reshape(outputs[-1], [-1])
-
-    # y_true = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]), 80 + 5)) for l in range(len(anchors_mask))]
+    y_true = [Input(shape=(
+    input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]), 80 + 5))
+              for l in range(len(anchors_mask))]
     # y_pred = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]), 80 + 5)) for l in range(len(anchors_mask))]
 
-    y_true = [tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85])]
-    y_pred = [tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85])]
+    y_true = [tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85]),
+              tf.random.normal([10, 13, 13, 3, 85])]
+    y_pred = [tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85]),
+              tf.random.normal([10, 13, 13, 3, 85])]
 
     yolo_loss = YoloLoss(anchors, anchors_mask).loss(y_true, y_pred)
 
