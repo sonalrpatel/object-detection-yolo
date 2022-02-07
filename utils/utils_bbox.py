@@ -56,11 +56,16 @@ def get_pred_boxes(final_layer_feats, anchors, num_classes, input_shape, calc_lo
     box_wh = K.exp(final_layer_feats[..., 2:4]) * anchors_tensor / K.cast(input_shape[::-1], K.dtype(final_layer_feats))
 
     # ==============================================================
+    #   concat predicted xy and wh to bounding box shape => (m,13,13,3,4)
+    # ==============================================================
+    pred_box = K.concatenate([box_xy, box_wh])
+
+    # ==============================================================
     #   if calc loss, then return -> grid, feats, box_xy, box_wh
     #   if during prediction, then return -> box_xy, box_wh, box_confidence, box_class_probs
     # ==============================================================
     if calc_loss:
-        ret = [grid, final_layer_feats, box_xy, box_wh]
+        ret = [grid, final_layer_feats, pred_box]
     else:
         # ==============================================================
         #   retrieve confidence score and class probabilities
