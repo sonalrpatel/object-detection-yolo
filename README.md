@@ -39,7 +39,7 @@
 * https://pylessons.com/YOLOv3-TF2-introduction/
 * https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
 * https://github.com/pythonlessons/YOLOv3-object-detection-tutorial/tree/master/YOLOv3-custom-training
-* https://github.com/experiencor/keras-yolo3 (good class organisation, refer for generator+aug)
+* https://github.com/experiencor/keras-yolo3 (good class organisation, refer for generator+augmentation)
 * https://github.com/mystic123/tensorflow-yolo-v3
 
 ### Model Subclassing
