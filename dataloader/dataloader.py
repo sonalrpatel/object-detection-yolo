@@ -21,30 +21,10 @@ from configs import *
 
 class YoloDataset(object):
     # Dataset preprocess implementation
-    def __init__(self, mode=None):
+    def __init__(self):
         super(YoloDataset, self).__init__()
-        self.mode = mode
-        self.data_dir = DATA_DIR
-        self.image_dir = IMAGE_DIR
-        self.label_dir = LABEL_DIR
-        self.image_size = IMAGE_SIZE
-        self.batch_size = TRAIN_BATCH_SIZE
-        self.data_aug = TRAIN_DATA_AUG
         self.annotation_path = TRAIN_ANNOT_PATH
-
-        self.train_input_size = TRAIN_INPUT_SIZE
-        self.strides = np.array(YOLO_STRIDES)
-        self.scales = np.array(YOLO_SCALES)
-        self.classes = read_class_names(CLASSES_PATH)
-        self.num_classes = self.classes.__len__()
-        self.anchors = get_anchors(ANCHORS_PATH)
-        self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
-        self.max_bbox_per_scale = YOLO_MAX_BBOX_PER_SCALE
-
         self.img_bboxes_pairs = self.load_img_bboxes_pairs()
-        self.num_samples = self.img_bboxes_pairs.__len__()
-        self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
-        self.batch_count = 0
 
     def load_img_bboxes_pairs(self):
         """
@@ -100,8 +80,8 @@ class YoloDataGenerator(keras.utils.Sequence):
         self.img_bboxes_pairs = YoloDataset().img_bboxes_pairs
         self.num_samples = self.img_bboxes_pairs.__len__()
         self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
-        self.batch_count = 0
         self.all_indexes = np.arange(self.num_samples)
+        self.batch_count = 0
         self.shuffle = True
 
     def __len__(self):
@@ -271,5 +251,5 @@ class YoloDataGenerator(keras.utils.Sequence):
 if __name__ == "__main__":
 
     ydg = YoloDataGenerator()
-    len = ydg.__len__()
+    length = ydg.__len__()
     X, y = ydg.__getitem__(0)

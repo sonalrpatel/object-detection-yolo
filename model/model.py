@@ -140,7 +140,7 @@ class ScalePrediction(Layer):
         return y
 
 
-class YOLOv3(Model):
+class YOLOv3(Model, ABC):
     def __init__(self, num_classes=80):
         super(YOLOv3, self).__init__()
         self.num_classes = num_classes
@@ -176,6 +176,6 @@ if __name__ == "__main__":
     model = YOLOv3(num_classes).model(image_shape)
 
     input_tensor = Input(image_shape)
-    output = model(input_tensor)
+    output_tensor = model(input_tensor)
 
     print(model.summary())
