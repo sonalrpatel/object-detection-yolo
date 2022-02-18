@@ -3,17 +3,17 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
-def read_class_names(class_file_name):
+def get_classes(class_file_name):
     """
     loads class name from a file
     :param class_file_name: 
     :return: class names 
     """""
-    names = {}
+    class_names = {}
     with open(class_file_name, 'r') as data:
         for ID, name in enumerate(data):
-            names[ID] = name.strip('\n')
-    return names
+            class_names[ID] = name.strip('\n')
+    return class_names, len(class_names)
 
 
 def get_anchors(anchors_path):

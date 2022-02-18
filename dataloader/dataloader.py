@@ -60,9 +60,9 @@ class YoloDataGenerator(keras.utils.Sequence):
     # Data generation
     def __init__(self):
         super(YoloDataGenerator, self).__init__()
-        self.data_dir = DATA_DIR
-        self.image_dir = IMAGE_DIR
-        self.label_dir = LABEL_DIR
+        self.data_dir = DIR_DATA
+        self.image_dir = DIR_IMAGE
+        self.label_dir = DIR_LABEL
         self.image_size = IMAGE_SIZE
         self.batch_size = TRAIN_BATCH_SIZE
         self.data_aug = TRAIN_DATA_AUG
@@ -70,9 +70,9 @@ class YoloDataGenerator(keras.utils.Sequence):
         self.train_input_size = TRAIN_INPUT_SIZE
         self.strides = np.array(YOLO_STRIDES)
         self.scales = np.array(YOLO_SCALES)
-        self.classes = read_class_names(CLASSES_PATH)
+        self.classes, _ = get_classes(PATH_CLASSES)
+        self.anchors = get_anchors(PATH_ANCHORS)    # YOLO_ANCHORS
         self.num_classes = self.classes.__len__()
-        self.anchors = get_anchors(ANCHORS_PATH)    # YOLO_ANCHORS
         self.num_scales = YOLO_NUM_SCALES
         self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
         self.max_bbox_per_scale = YOLO_MAX_BBOX_PER_SCALE
@@ -155,7 +155,7 @@ class YoloDataGenerator(keras.utils.Sequence):
             y_true: list of array, shape like yolo_outputs, xywh are relative value
         """""
         assert (true_boxes[..., 4] < self.num_classes).all(), 'class id must be less than num_classes'
-        anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+        anchor_mask = YOLO_ANCHORS_MASK
         input_shape = np.array(self.image_size, dtype='int32')
 
         # (x_min, y_min, x_max, y_max) is converted to (x_center, y_center, width, height) relative to input shape

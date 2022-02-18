@@ -12,21 +12,20 @@ from utils.utils_metric import *
 
 
 class YoloLoss(object):
-    def __init__(self, anchors, anchors_mask, num_classes=80, ignore_thresh=0.5):
+    def __init__(self, input_shpae, anchors, anchors_mask, num_classes=80, ignore_thresh=0.5):
         super(YoloLoss, self).__init__()
         self.use_label_smooth = False
         self.anchors = anchors
         self.anchors_mask = anchors_mask
         self.num_classes = num_classes
         self.ignore_thresh = ignore_thresh
-        self.input_shape = (416, 416)
-        self.img_size = (416, 416)
+        self.input_shape = input_shpae
         self.num_layers = 3
         self.use_focal_loss = False
         self.use_static_shape = False
-        self.class_num = 80
 
-    def box_iou(self, pred_boxes, valid_true_boxes):
+    @staticmethod
+    def box_iou(pred_boxes, valid_true_boxes):
         """
         param:
             pred_boxes: [13, 13, 3, 4], (center_x, center_y, w, h)
@@ -65,7 +64,7 @@ class YoloLoss(object):
         return iou
 
     def loss(self, y_true, y_pred):
-        y_pred = [tf.reshape(y_p, [-1, 13, 13, 3, 5 + self.class_num]) for y_p in y_pred]
+        y_pred = [tf.reshape(y_p, [-1, 13, 13, 3, 5 + self.num_classes]) for y_p in y_pred]
 
         # -----------------------------------------------------------#
         #   y_true is a list，contains 3 feature maps，shape are:

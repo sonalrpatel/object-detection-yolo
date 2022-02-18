@@ -18,19 +18,22 @@ YOLO_SCALES = [52, 26, 13]
 YOLO_NUM_SCALES = 3
 YOLO_ANCHOR_PER_SCALE = 3
 YOLO_MAX_BBOX_PER_SCALE = 100
-YOLO_INPUT_SIZE = 416
 YOLO_ANCHORS = [[[10, 13], [16, 30], [33, 23]],         # 52x52 grids for small objects
                 [[30, 61], [62, 45], [59, 119]],        # 26x26 grids for medium objects
                 [[116, 90], [156, 198], [373, 326]]]    # 13x13 grids for large objects
+YOLO_ANCHORS_MASK = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+
+# IMAGE size
+IMAGE_SIZE = (416, 416)
 
 # Dataset
 # DATA_DIR = "D:/01_PythonAIML/00_Datasets/PASCAL_VOC/"
-DATA_DIR = "D:/01_PythonAIML/06_myProjects/object-detection-yolo/data/"
-CLASSES_PATH = DATA_DIR + "pascal_classes.txt"
-ANCHORS_PATH = DATA_DIR + 'yolo_anchors.txt'
-IMAGE_DIR = DATA_DIR + "images"
-LABEL_DIR = DATA_DIR + "labels"
-IMAGE_SIZE = (416, 416)
+DIR_DATA = "D:/01_PythonAIML/06_myProjects/object-detection-yolo/data/"
+DIR_IMAGE = DIR_DATA + "images"
+DIR_LABEL = DIR_DATA + "labels"
+PATH_CLASSES = DIR_DATA + "pascal_classes.txt"
+PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
+PATH_MODEL = DIR_DATA + 'yolo_weights.h5'
 
 # TRAIN options
 TRAIN_YOLO_TINY = False
@@ -38,7 +41,7 @@ TRAIN_SAVE_BEST_ONLY = True  # saves only best model according validation loss (
 TRAIN_SAVE_CHECKPOINT = False  # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOGDIR = "log"
 # TRAIN_ANNOT_PATH = DATA_DIR + "train.csv"
-TRAIN_ANNOT_PATH = DATA_DIR + "annotations.txt"
+TRAIN_ANNOT_PATH = DIR_DATA + "annotations.txt"
 TRAIN_CHECKPOINTS_FOLDER = "checkpoints"
 TRAIN_MODEL_NAME = f"{YOLO_TYPE}_custom"
 TRAIN_LOAD_IMAGES_TO_RAM = True  # With True faster training, but need more RAM
@@ -53,7 +56,7 @@ TRAIN_WARMUP_EPOCHS = 2
 TRAIN_EPOCHS = 100
 
 # TEST options
-TEST_ANNOT_PATH = DATA_DIR + "test.csv"
+TEST_ANNOT_PATH = DIR_DATA + "test.csv"
 TEST_BATCH_SIZE = 8
 TEST_INPUT_SIZE = 416
 TEST_DATA_AUG = False

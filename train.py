@@ -1,7 +1,11 @@
-from PIL import Image
-import numpy as np
-from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
-import cv2
+
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
+from tensorflow.keras.optimizers import Adam
+
+from model.model import YOLOv3, get_train_model
+from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
+from utils.utils import *
+from configs import *
 
 """""
 When training your own target detection model, you must pay attention to the following points: 
@@ -37,29 +41,19 @@ When training your own target detection model, you must pay attention to the fol
 
 
 def _main():
-    annotation_path = 'data/annotations.txt'
-    log_dir = 'logs/000/'
-    classes_path = 'data/pascal_classes.txt'
-    anchors_path = 'data/yolo_anchors.txt'
-
-    # ------------------------------------------------------#
-    #   Whether to use eager mode training
-    # ------------------------------------------------------#
-    eager = False
-
     # ------------------------------------------------------#
     #   Be sure to modify classes_path before training so that it corresponds to your own dataset
     # ------------------------------------------------------#
-    classes_path = 'model_data/voc_classes.txt'
+    classes_path = PATH_CLASSES
 
-    # ---------------------------------------------------------------------#
+    # ------------------------------------------------------#
     #   Anchors_path represents the txt file corresponding to the a priori box, which is generally not modified
     #   Anchors_mask is used to help the code find the corresponding a priori box and is generally not modified
-    # ---------------------------------------------------------------------#
-    anchors_path = 'model_data/yolo_anchors.txt'
-    anchors_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+    # ------------------------------------------------------#
+    anchors_path = PATH_ANCHORS
+    anchors_mask = YOLO_ANCHORS_MASK
 
-    # ---------------------------------------------------------------------#
+    # ------------------------------------------------------#
     #   Please refer to the README for the download of the weight file, which can be downloaded from the network disk
     #   The pretrained weights of the model are common to different datasets because the features are common
     #   The more important part of the pre-training weight of the model is the weight part of the backbone feature
@@ -75,7 +69,7 @@ def _main():
     #   When model_path = '', the weights of the entire model are not loaded.
     #
     #   The weights of the entire model are used here, so they are loaded in train.py
-    #   If you want the model to start training from 0, set model_path = '', the following Freeze_Train = False,
+    #   If you want the model to start training from 0, set model_path = '', the following Freeze_Body = False,
     #       then start training from 0, and there is no process of freezing the backbone
     #   Generally speaking, starting from 0 will have a poor training effect, because the weights are too random,
     #       and the feature extraction effect is not obvious
@@ -86,13 +80,13 @@ def _main():
     #   If you must train the backbone part of the network, you can learn about the imagenet data set
     #   First, train the classification model. The backbone part of the classification model is common to the model,
     #       and training is based on this
-    # ---------------------------------------------------------------------#
-    model_path = 'model_data/yolo_weights.h5'
+    # ------------------------------------------------------#
+    model_path = PATH_MODEL
 
     # ------------------------------------------------------#
     #   The size of the input shape must be a multiple of 32
     # ------------------------------------------------------#
-    input_shape = [416, 416]
+    input_shape = IMAGE_SIZE
 
     # ------------------------------------------------------#
     #   The training is divided into two phases, the freezing phase and the thawing phase
@@ -122,7 +116,7 @@ def _main():
     # ------------------------------------------------------#
     #   Whether to freeze training, the default is to freeze the main training first and then unfreeze the training
     # ------------------------------------------------------#
-    Freeze_Train = True
+    Freeze_Body = 1
 
     # ------------------------------------------------------#
     #   Used to set whether to use multi-threading to read data, 1 means to turn off multi-threading
@@ -130,13 +124,13 @@ def _main():
     #   When multi-threading is enabled in keras, sometimes the speed is much slower
     #   Turn on multithreading when IO is the bottleneck, that is, the GPU operation speed is much faster than the
     #       speed of reading pictures
-    #   Valid when eager mode is False
+    #   Valid when "eager mode" is False
     # ------------------------------------------------------#
     num_workers = 1
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   get image path and label
-    # ------------------------------------------------------#
+    # =======================================================
     train_annotation_path = '2007_train.txt'
     val_annotation_path = '2007_val.txt'
 
@@ -149,7 +143,8 @@ def _main():
     # ------------------------------------------------------#
     #   Create a yolo model
     # ------------------------------------------------------#
-    model_body = yolo_body((None, None, 3), anchors_mask, num_classes)
+    model_body = YOLOv3(num_classes).model(input_shape)
+    print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     # ------------------------------------------------------#
     #   Load pretrained weights
@@ -158,9 +153,22 @@ def _main():
         print('Load weights {}.'.format(model_path))
         model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
 
-    if not eager:
-        model = get_train_model(model_body, input_shape, num_classes, anchors, anchors_mask)
-    # ---------------------------------------------------------------------#
+    # ------------------------------------------------------#
+    #   Freeze body
+    # ------------------------------------------------------#
+    if Freeze_Body in [1, 2]:
+        # Freeze darknet53 body or freeze all but 3 output layers
+        freeze_layers = (185, len(model_body.layers)-3)[Freeze_Body-1]
+        for i in range(freeze_layers):
+            model_body.layers[i].trainable = False
+        print('Freeze the first {} layers of total {} layers.'.format(freeze_layers, len(model_body.layers)))
+
+    # ------------------------------------------------------#
+    #   Construct model with loss layer
+    # ------------------------------------------------------#
+    model = get_train_model(model_body, input_shape, num_classes, anchors, anchors_mask)
+
+    # ------------------------------------------------------#
     #   callbacks
     #   set the training parameters
     #   logging indicates the storage address of tensorboard
@@ -168,7 +176,7 @@ def _main():
     #   reduce_lr is used to set the way the learning rate decreases
     #   early_stopping is used to set early stop, and val_loss will automatically end the training without falling for
     #       many times, indicating that the model is basically converged
-    # ---------------------------------------------------------------------#
+    # ------------------------------------------------------#
     logging = TensorBoard(log_dir='logs/')
     checkpoint = ModelCheckpoint('logs/ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5', monitor='val_loss',
                                  save_weights_only=True, save_best_only=False, period=1)
@@ -185,11 +193,6 @@ def _main():
         val_lines = f.readlines()
     num_train = len(train_lines)
     num_val = len(val_lines)
-
-    if Freeze_Train:
-        freeze_layers = 184
-        for i in range(freeze_layers): model_body.layers[i].trainable = False
-        print('Freeze the first {} layers of total {} layers.'.format(freeze_layers, len(model_body.layers)))
 
     # ------------------------------------------------------#
     #   The backbone feature extraction network features are common, and freezing training can speed up training
@@ -217,41 +220,24 @@ def _main():
                                       train=False)
 
         print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
-        if eager:
-            gen = tf.data.Dataset.from_generator(partial(train_dataloader.generate),
-                                                 (tf.float32, tf.float32, tf.float32, tf.float32))
-            gen_val = tf.data.Dataset.from_generator(partial(val_dataloader.generate),
-                                                     (tf.float32, tf.float32, tf.float32, tf.float32))
 
-            gen = gen.shuffle(buffer_size=batch_size).prefetch(buffer_size=batch_size)
-            gen_val = gen_val.shuffle(buffer_size=batch_size).prefetch(buffer_size=batch_size)
+        model.compile(optimizer=Adam(lr=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
-            lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-                initial_learning_rate=lr, decay_steps=epoch_step, decay_rate=0.94, staircase=True)
+        model.fit_generator(
+            generator=train_dataloader,
+            steps_per_epoch=epoch_step,
+            validation_data=val_dataloader,
+            validation_steps=epoch_step_val,
+            epochs=end_epoch,
+            initial_epoch=start_epoch,
+            use_multiprocessing=True if num_workers > 1 else False,
+            workers=num_workers,
+            callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
+        )
 
-            optimizer = Adam(learning_rate=lr_schedule)
-
-            for epoch in range(start_epoch, end_epoch):
-                fit_one_epoch(model_body, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val,
-                              end_epoch, input_shape, anchors, anchors_mask, num_classes)
-
-        else:
-            model.compile(optimizer=Adam(lr=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
-
-            model.fit_generator(
-                generator=train_dataloader,
-                steps_per_epoch=epoch_step,
-                validation_data=val_dataloader,
-                validation_steps=epoch_step_val,
-                epochs=end_epoch,
-                initial_epoch=start_epoch,
-                use_multiprocessing=True if num_workers > 1 else False,
-                workers=num_workers,
-                callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
-            )
-
-    if Freeze_Train:
-        for i in range(freeze_layers): model_body.layers[i].trainable = True
+    if Freeze_Body:
+        for i in range(freeze_layers):
+            model_body.layers[i].trainable = True
 
     if True:
         batch_size = Unfreeze_batch_size
@@ -271,38 +257,20 @@ def _main():
                                       train=False)
 
         print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
-        if eager:
-            gen = tf.data.Dataset.from_generator(partial(train_dataloader.generate),
-                                                 (tf.float32, tf.float32, tf.float32, tf.float32))
-            gen_val = tf.data.Dataset.from_generator(partial(val_dataloader.generate),
-                                                     (tf.float32, tf.float32, tf.float32, tf.float32))
 
-            gen = gen.shuffle(buffer_size=batch_size).prefetch(buffer_size=batch_size)
-            gen_val = gen_val.shuffle(buffer_size=batch_size).prefetch(buffer_size=batch_size)
+        model.compile(optimizer=Adam(lr=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
-            lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-                initial_learning_rate=lr, decay_steps=epoch_step, decay_rate=0.94, staircase=True)
-
-            optimizer = Adam(learning_rate=lr_schedule)
-
-            for epoch in range(start_epoch, end_epoch):
-                fit_one_epoch(model_body, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val,
-                              end_epoch, input_shape, anchors, anchors_mask, num_classes)
-
-        else:
-            model.compile(optimizer=Adam(lr=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
-
-            model.fit_generator(
-                generator=train_dataloader,
-                steps_per_epoch=epoch_step,
-                validation_data=val_dataloader,
-                validation_steps=epoch_step_val,
-                epochs=end_epoch,
-                initial_epoch=start_epoch,
-                use_multiprocessing=True if num_workers > 1 else False,
-                workers=num_workers,
-                callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
-            )
+        model.fit_generator(
+            generator=train_dataloader,
+            steps_per_epoch=epoch_step,
+            validation_data=val_dataloader,
+            validation_steps=epoch_step_val,
+            epochs=end_epoch,
+            initial_epoch=start_epoch,
+            use_multiprocessing=True if num_workers > 1 else False,
+            workers=num_workers,
+            callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
+        )
 
 
 if __name__ == '__main__':
