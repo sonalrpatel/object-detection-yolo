@@ -52,8 +52,8 @@ def get_pred_boxes(final_layer_feats, anchors, num_classes, input_shape, calc_lo
     #   bw = pw * exp(tw)
     #   bh = ph * exp(th)
     # ==============================================================
-    box_xy = (K.sigmoid(final_layer_feats[..., :2]) + grid) / K.cast(grid_shape[::-1], K.dtype(final_layer_feats))
-    box_wh = K.exp(final_layer_feats[..., 2:4]) * anchors_tensor / K.cast(input_shape[::-1], K.dtype(final_layer_feats))
+    box_xy = (K.sigmoid(final_layer_feats[..., :2]) + grid) / K.cast(grid_shape, K.dtype(final_layer_feats))
+    box_wh = K.exp(final_layer_feats[..., 2:4]) * anchors_tensor / K.cast(input_shape, K.dtype(final_layer_feats))
 
     # ==============================================================
     #   concat predicted xy and wh to bounding box shape => (m,13,13,3,4)

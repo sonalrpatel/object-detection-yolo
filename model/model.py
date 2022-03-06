@@ -4,7 +4,7 @@ Implementation of YOLOv3 architecture
 from abc import ABC
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Add, ZeroPadding2D, UpSampling2D, Concatenate, MaxPooling2D
-from tensorflow.keras.layers import Layer, LeakyReLU, BatchNormalization, Lambda
+from tensorflow.keras.layers import Layer, LeakyReLU, BatchNormalization
 from tensorflow.keras import Input, Model
 from tensorflow.keras.regularizers import l2
 
@@ -169,26 +169,6 @@ class YOLOv3(Model, ABC):
         x = Input(input_shape)
 
         return Model(inputs=[x], outputs=self.call(x))
-
-
-# ---------------------------------------------------#
-#   Construct model with loss layer
-# ---------------------------------------------------#
-def get_train_model(model_body, input_shape, anchors, anchors_mask, num_classes):
-    yolo_loss = YoloLoss(input_shape, anchors, anchors_mask, num_classes)
-    y_true = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], \
-                           len(anchors_mask[l]), num_classes + 5)) for l in range(len(anchors_mask))]
-    model_loss = Lambda(
-                        yolo_loss,
-                        output_shape=(1,),
-                        name='yolo_loss',
-                        arguments={'input_shape': input_shape, 'anchors': anchors, 'anchors_mask': anchors_mask,
-                                    'num_classes': num_classes}
-                        )([*model_body.output, *y_true])
-
-    model = Model([model_body.input, *y_true], model_loss)
-
-    return model
 
 
 if __name__ == "__main__":

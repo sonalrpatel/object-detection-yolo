@@ -76,10 +76,10 @@ class ExponentDecayScheduler(keras.callbacks.Callback):
         self.learning_rates = []
 
     def on_epoch_end(self, batch, logs=None):
-        learning_rate = K.get_value(self.model.optimizer.lr) * self.decay_rate
-        K.set_value(self.model.optimizer.lr, learning_rate)
+        learning_rate = K.get_value(self.model.optimizer.learning_rate) * self.decay_rate
+        K.set_value(self.model.optimizer.learning_rate, learning_rate)
         if self.verbose > 0:
-            print('Setting learning rate to %s.' % (learning_rate))
+            print('Setting learning rate to %s.' % learning_rate)
 
 
 class ModelCheckpoint(keras.callbacks.Callback):

@@ -44,3 +44,7 @@
 
 ### Model Subclassing
 * https://towardsdatascience.com/model-sub-classing-and-custom-training-loop-from-scratch-in-tensorflow-2-cc1d4f10fb4e
+
+### Custom Loss
+* https://cnvrg.io/keras-custom-loss-functions/
+* https://www.kaggle.com/c/pku-autonomous-driving/discussion/113928

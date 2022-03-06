@@ -24,4 +24,4 @@ def get_anchors(anchors_path):
         anchors = f.readline()
     anchors = [float(x) for x in anchors.split(',')]
     anchors = np.array(anchors).reshape(-1, 2)
-    return anchors  # , len(anchors)
+    return anchors, len(anchors)

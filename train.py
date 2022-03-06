@@ -1,8 +1,13 @@
-
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.optimizers import Adam
 
-from model.model import YOLOv3, get_train_model
+from tensorflow.keras import Input, Model
+from tensorflow.keras.layers import Lambda
+from model.yolov3 import YOLOv3
+# from dataloader.dataloader import *
+from dataloader.dataloader2 import *
+from loss.loss import YoloLoss
+from loss.yololoss2 import yolo_loss
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
 from configs import *
@@ -41,19 +46,19 @@ When training your own target detection model, you must pay attention to the fol
 
 
 def _main():
-    # ------------------------------------------------------#
+    # =======================================================
     #   Be sure to modify classes_path before training so that it corresponds to your own dataset
-    # ------------------------------------------------------#
+    # =======================================================
     classes_path = PATH_CLASSES
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Anchors_path represents the txt file corresponding to the a priori box, which is generally not modified
     #   Anchors_mask is used to help the code find the corresponding a priori box and is generally not modified
-    # ------------------------------------------------------#
+    # =======================================================
     anchors_path = PATH_ANCHORS
     anchors_mask = YOLO_ANCHORS_MASK
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Please refer to the README for the download of the weight file, which can be downloaded from the network disk
     #   The pretrained weights of the model are common to different datasets because the features are common
     #   The more important part of the pre-training weight of the model is the weight part of the backbone feature
@@ -69,7 +74,7 @@ def _main():
     #   When model_path = '', the weights of the entire model are not loaded.
     #
     #   The weights of the entire model are used here, so they are loaded in train.py
-    #   If you want the model to start training from 0, set model_path = '', the following Freeze_Body = False,
+    #   If you want the model to start training from 0, set model_path = '', the following freeze_body = False,
     #       then start training from 0, and there is no process of freezing the backbone
     #   Generally speaking, starting from 0 will have a poor training effect, because the weights are too random,
     #       and the feature extraction effect is not obvious
@@ -80,103 +85,100 @@ def _main():
     #   If you must train the backbone part of the network, you can learn about the imagenet data set
     #   First, train the classification model. The backbone part of the classification model is common to the model,
     #       and training is based on this
-    # ------------------------------------------------------#
+    # =======================================================
     model_path = PATH_MODEL
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   The size of the input shape must be a multiple of 32
-    # ------------------------------------------------------#
-    input_shape = IMAGE_SIZE
+    # =======================================================
+    image_shape = (IMAGE_SIZE[0], IMAGE_SIZE[1], 3)
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   The training is divided into two phases, the freezing phase and the thawing phase
     #   Insufficient video memory has nothing to do with the size of the data set
     #   If it indicates that the video memory is insufficient, please reduce the batch_size
     #   Affected by the BatchNorm layer, the minimum batch_size is 2 and cannot be 1
-    # ------------------------------------------------------#
-    # ------------------------------------------------------#
+    # =======================================================
+    # =======================================================
     #   Freeze phase training parameters
     #   At this time, the backbone of the model is frozen, and the feature extraction network does not change
     #   Occupy less memory, only fine-tune the network
-    # ------------------------------------------------------#
-    Init_Epoch = 0
-    Freeze_Epoch = 50
-    Freeze_batch_size = 8
-    Freeze_lr = 1e-3
+    # =======================================================
+    init_epoch = 0
+    freeze_epoch = 50
+    freeze_batch_size = 8
+    freeze_lr = 1e-3
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Thawing phase training parameters
     #   At this time, the backbone of the model is not frozen, and the feature extraction network will change
     #   The occupied video memory is large, and all the parameters of the network will be changed
-    # ------------------------------------------------------#
-    UnFreeze_Epoch = 100
-    Unfreeze_batch_size = 4
-    Unfreeze_lr = 1e-4
+    # =======================================================
+    unfreeze_epoch = 100
+    unfreeze_batch_size = 4
+    unfreeze_lr = 1e-4
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Whether to freeze training, the default is to freeze the main training first and then unfreeze the training
-    # ------------------------------------------------------#
-    Freeze_Body = 1
+    # =======================================================
+    freeze_body = 1
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Used to set whether to use multi-threading to read data, 1 means to turn off multi-threading
     #   When enabled, it will speed up data reading, but it will take up more memory
     #   When multi-threading is enabled in keras, sometimes the speed is much slower
     #   Turn on multithreading when IO is the bottleneck, that is, the GPU operation speed is much faster than the
     #       speed of reading pictures
     #   Valid when "eager mode" is False
-    # ------------------------------------------------------#
+    # =======================================================
     num_workers = 1
 
     # =======================================================
-    #   get image path and label
-    # =======================================================
-    train_annotation_path = '2007_train.txt'
-    val_annotation_path = '2007_val.txt'
-
-    # ------------------------------------------------------#
     #   Get classes and anchors
-    # ------------------------------------------------------#
+    # =======================================================
     class_names, num_classes = get_classes(classes_path)
     anchors, num_anchors = get_anchors(anchors_path)
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Create a yolo model
-    # ------------------------------------------------------#
-    model_body = YOLOv3(num_classes).model(input_shape)
+    # =======================================================
+    model_body = YOLOv3((image_shape[0], image_shape[1], 3), num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   Load pretrained weights
-    # ------------------------------------------------------#
+    # =======================================================
     if model_path != '':
         print('Load weights {}.'.format(model_path))
-        model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
+        # model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
 
-    # ------------------------------------------------------#
-    #   Freeze body
-    # ------------------------------------------------------#
-    if Freeze_Body in [1, 2]:
-        # Freeze darknet53 body or freeze all but 3 output layers
-        freeze_layers = (185, len(model_body.layers)-3)[Freeze_Body-1]
-        for i in range(freeze_layers):
-            model_body.layers[i].trainable = False
-        print('Freeze the first {} layers of total {} layers.'.format(freeze_layers, len(model_body.layers)))
-
-    # ------------------------------------------------------#
+    # =======================================================
     #   Construct model with loss layer
-    # ------------------------------------------------------#
-    model = get_train_model(model_body, input_shape, num_classes, anchors, anchors_mask)
+    # =======================================================
+    y_true = [Input(shape=(image_shape[0] // {0: 32, 1: 16, 2: 8}[l], image_shape[1] // {0: 32, 1: 16, 2: 8}[l], \
+                           len(anchors_mask[l]), num_classes + 5)) for l in range(len(anchors_mask))]
 
-    # ------------------------------------------------------#
-    #   callbacks
+    # yolo_loss = YoloLoss(image_shape, anchors, anchors_mask, num_classes).loss([*model_body.output, *y_true])
+    # yolo_loss = YoloLoss(image_shape, anchors, anchors_mask, num_classes)
+
+    model_loss = Lambda(yolo_loss,
+                        output_shape=(1,),
+                        name='yolo_loss',
+                        arguments={'input_shape': image_shape[0:2], 'anchors': anchors, 'anchors_mask': anchors_mask, \
+                                   'num_classes': num_classes}
+                        )([*model_body.output, *y_true])
+
+    model = Model([model_body.input, *y_true], model_loss)
+
+    # =======================================================
+    #   Callbacks
     #   set the training parameters
     #   logging indicates the storage address of tensorboard
     #   checkpoint is used to set the details of weight saving, period is used to modify how many epochs are saved once
     #   reduce_lr is used to set the way the learning rate decreases
     #   early_stopping is used to set early stop, and val_loss will automatically end the training without falling for
     #       many times, indicating that the model is basically converged
-    # ------------------------------------------------------#
+    # =======================================================
     logging = TensorBoard(log_dir='logs/')
     checkpoint = ModelCheckpoint('logs/ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5', monitor='val_loss',
                                  save_weights_only=True, save_best_only=False, period=1)
@@ -184,50 +186,43 @@ def _main():
     early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1)
     loss_history = LossHistory('logs/')
 
-    # ------------------------------------------------------#
-    #   Read the txt corresponding to the dataset
-    # ------------------------------------------------------#
-    with open(train_annotation_path) as f:
-        train_lines = f.readlines()
-    with open(val_annotation_path) as f:
-        val_lines = f.readlines()
-    num_train = len(train_lines)
-    num_val = len(val_lines)
+    # =======================================================
+    #   Freeze body
+    # =======================================================
+    if freeze_body in [1, 2]:
+        # Freeze darknet53 body or freeze all but 3 output layers
+        freeze_layers = (185, len(model_body.layers) - 3)[freeze_body - 1]
+        for i in range(freeze_layers):
+            model_body.layers[i].trainable = False
+        print('Freeze the first {} layers of total {} layers.'.format(freeze_layers, len(model_body.layers)))
 
-    # ------------------------------------------------------#
+    # =======================================================
     #   The backbone feature extraction network features are common, and freezing training can speed up training
     #   Also prevents weights from being corrupted at the beginning of training
-    #   Init_Epoch is the starting generation
-    #   Freeze_Epoch is the epoch to freeze training
-    #   UnFreeze_Epoch total training generation
+    #   init_epoch is the starting generation
+    #   freeze_epoch is the epoch to freeze training
+    #   unfreeze_epoch total training generation
     #   Prompt OOM or insufficient video memory, please reduce the Batch_size
-    # ------------------------------------------------------#
+    # =======================================================
     if True:
-        batch_size = Freeze_batch_size
-        lr = Freeze_lr
-        start_epoch = Init_Epoch
-        end_epoch = Freeze_Epoch
+        lr = freeze_lr
+        batch_size = freeze_batch_size
+        start_epoch = init_epoch
+        end_epoch = freeze_epoch
 
-        epoch_step = num_train // batch_size
-        epoch_step_val = num_val // batch_size
+        train_dataloader = YoloDataGenerator('train')
+        val_dataloader = YoloDataGenerator('val')
 
-        if epoch_step == 0 or epoch_step_val == 0:
-            raise ValueError('The dataset is too small for training, please expand the dataset.')
+        # print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
 
-        train_dataloader = YoloDatasets(train_lines, input_shape, anchors, batch_size, num_classes, anchors_mask,
-                                        train=True)
-        val_dataloader = YoloDatasets(val_lines, input_shape, anchors, batch_size, num_classes, anchors_mask,
-                                      train=False)
+        model.summary()
+        model.compile(optimizer=Adam(learning_rate=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
-        print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
-
-        model.compile(optimizer=Adam(lr=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
-
-        model.fit_generator(
-            generator=train_dataloader,
-            steps_per_epoch=epoch_step,
+        model.fit(
+            train_dataloader,
+            steps_per_epoch=train_dataloader.__len__(),
             validation_data=val_dataloader,
-            validation_steps=epoch_step_val,
+            validation_steps=val_dataloader.__len__(),
             epochs=end_epoch,
             initial_epoch=start_epoch,
             use_multiprocessing=True if num_workers > 1 else False,
@@ -235,36 +230,25 @@ def _main():
             callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
         )
 
-    if Freeze_Body:
-        for i in range(freeze_layers):
-            model_body.layers[i].trainable = True
+    # =======================================================
+    #   Unfreeze layers trainability
+    #   Continue training
+    # =======================================================
+    if freeze_body in [1, 2]:
+        for i in range(len(model.layers)):
+            model.layers[i].trainable = True
 
     if True:
-        batch_size = Unfreeze_batch_size
-        lr = Unfreeze_lr
-        start_epoch = Freeze_Epoch
-        end_epoch = UnFreeze_Epoch
+        lr = unfreeze_lr
+        batch_size = unfreeze_batch_size
+        start_epoch = freeze_epoch
+        end_epoch = unfreeze_epoch
 
-        epoch_step = num_train // batch_size
-        epoch_step_val = num_val // batch_size
-
-        if epoch_step == 0 or epoch_step_val == 0:
-            raise ValueError('The dataset is too small for training, please expand the dataset.')
-
-        train_dataloader = YoloDatasets(train_lines, input_shape, anchors, batch_size, num_classes, anchors_mask,
-                                        train=True)
-        val_dataloader = YoloDatasets(val_lines, input_shape, anchors, batch_size, num_classes, anchors_mask,
-                                      train=False)
-
-        print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
-
-        model.compile(optimizer=Adam(lr=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
-
-        model.fit_generator(
-            generator=train_dataloader,
-            steps_per_epoch=epoch_step,
+        model.fit(
+            train_dataloader,
+            steps_per_epoch=train_dataloader.__len__(),
             validation_data=val_dataloader,
-            validation_steps=epoch_step_val,
+            validation_steps=val_dataloader.__len__(),
             epochs=end_epoch,
             initial_epoch=start_epoch,
             use_multiprocessing=True if num_workers > 1 else False,

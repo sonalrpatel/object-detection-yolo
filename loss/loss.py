@@ -12,14 +12,14 @@ from utils.utils_metric import *
 
 
 class YoloLoss(object):
-    def __init__(self, input_shpae, anchors, anchors_mask, num_classes=80, ignore_thresh=0.5):
+    def __init__(self, image_shape, anchors, anchors_mask, num_classes=80, ignore_thresh=0.5):
         super(YoloLoss, self).__init__()
         self.use_label_smooth = False
+        self.input_shape = image_shape[0:2]
         self.anchors = anchors
         self.anchors_mask = anchors_mask
         self.num_classes = num_classes
         self.ignore_thresh = ignore_thresh
-        self.input_shape = input_shpae
         self.num_layers = 3
         self.use_focal_loss = False
         self.use_static_shape = False
@@ -63,19 +63,13 @@ class YoloLoss(object):
 
         return iou
 
-    def loss(self, y_true, y_pred):
-        y_pred = [tf.reshape(y_p, [-1, 13, 13, 3, 5 + self.num_classes]) for y_p in y_pred]
-
+    def loss(self, args):
         # -----------------------------------------------------------#
-        #   y_true is a list，contains 3 feature maps，shape are:
-        #   (m,13,13,3,85)
-        #   (m,26,26,3,85)
-        #   (m,52,52,3,85)
-        #   y_pred is a list，contains 3 feature maps，shape are:
-        #   (m,13,13,3,85)
-        #   (m,26,26,3,85)
-        #   (m,52,52,3,85)
+        #   y_pred is a list，contains 3 feature maps，shape are: (m,13,13,255), (m,26,26,255), (m,52,52,255)
+        #   y_true is a list，contains 3 feature maps，shape are: (m,13,13,3,85), (m,26,26,3,85), (m,52,52,3,85)
         # -----------------------------------------------------------#
+        y_pred = args[:self.num_layers]
+        y_true = args[self.num_layers:]
 
         # -----------------------------------------------------------#
         #   input_shpae = (416, 416)
@@ -115,8 +109,9 @@ class YoloLoss(object):
             #   And, decode those Yolo predictions to return 4 matrices as below
             #   grid        (13,13,3,2) grid coordinates
             #   raw_pred    (m,13,13,3,85) raw prediction
-            #   pred_xy     (m,13,13,3,2) decode box center point x and y
-            #   pred_wh     (m,13,13,3,2) decode width and height
+            #   pred_box    (m,13,13,3,4) decode box center point x & y and width & height
+            #       pred_xy     (m,13,13,3,2) decode box center point x & y
+            #       pred_wh     (m,13,13,3,2) decode width & height
             # -----------------------------------------------------------#
             grid, raw_pred, pred_box = get_pred_boxes(y_pred[l], self.anchors[self.anchors_mask[l]],
                                                       self.num_classes, input_shape, calc_loss=True)
@@ -228,12 +223,12 @@ if __name__ == "__main__":
     anchors_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
     input_shape = (416, 416)
 
-    # y_true = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]), 80 + 5)) for l in range(len(anchors_mask))]
-    # y_pred = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]), 80 + 5)) for l in range(len(anchors_mask))]
+    y_true = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]), 25)) for l in range(len(anchors_mask))]
+    y_pred = [Input(shape=(input_shape[0] // {0: 32, 1: 16, 2: 8}[l], input_shape[1] // {0: 32, 1: 16, 2: 8}[l], len(anchors_mask[l]) * 25)) for l in range(len(anchors_mask))]
 
-    y_true = [tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85]), tf.random.normal([10, 13, 13, 3, 85])]
-    y_pred = [tf.random.normal([10, 13, 13, 3 * 85]), tf.random.normal([10, 13, 13, 3 * 85]), tf.random.normal([10, 13, 13, 3 * 85])]
+    # y_true = [tf.random.normal([4, 13, 13, 3, 25]), tf.random.normal([4, 13, 13, 3, 25]), tf.random.normal([4, 13, 13, 3, 25])]
+    # y_pred = [tf.random.normal([4, 13, 13, 3 * 25]), tf.random.normal([4, 13, 13, 3 * 25]), tf.random.normal([4, 13, 13, 3 * 25])]
 
-    yolo_loss = YoloLoss(anchors, anchors_mask).loss(y_true, y_pred)
+    yolo_loss = YoloLoss(input_shape, anchors, anchors_mask, num_classes=20).loss([*y_pred, *y_true])
 
     print(input_shape.__len__(), outputs[-1].shape)

@@ -28,7 +28,7 @@ IMAGE_SIZE = (416, 416)
 
 # Dataset
 # DATA_DIR = "D:/01_PythonAIML/00_Datasets/PASCAL_VOC/"
-DIR_DATA = "D:/01_PythonAIML/06_myProjects/object-detection-yolo/data/"
+DIR_DATA = "D:/01_PythonAIML/06_myProjects/object-detection-yolo3/data/"
 DIR_IMAGE = DIR_DATA + "images"
 DIR_LABEL = DIR_DATA + "labels"
 PATH_CLASSES = DIR_DATA + "pascal_classes.txt"
@@ -40,7 +40,6 @@ TRAIN_YOLO_TINY = False
 TRAIN_SAVE_BEST_ONLY = True  # saves only best model according validation loss (True recommended)
 TRAIN_SAVE_CHECKPOINT = False  # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOGDIR = "log"
-# TRAIN_ANNOT_PATH = DATA_DIR + "train.csv"
 TRAIN_ANNOT_PATH = DIR_DATA + "annotations.txt"
 TRAIN_CHECKPOINTS_FOLDER = "checkpoints"
 TRAIN_MODEL_NAME = f"{YOLO_TYPE}_custom"
@@ -55,6 +54,12 @@ TRAIN_LR_END = 1e-6
 TRAIN_WARMUP_EPOCHS = 2
 TRAIN_EPOCHS = 100
 
+# VAL options
+VAL_ANNOT_PATH = DIR_DATA + "annotations.txt"
+VAL_BATCH_SIZE = 8
+VAL_INPUT_SIZE = 416
+VAL_DATA_AUG = False
+
 # TEST options
 TEST_ANNOT_PATH = DIR_DATA + "test.csv"
 TEST_BATCH_SIZE = 8
@@ -62,5 +67,5 @@ TEST_INPUT_SIZE = 416
 TEST_DATA_AUG = False
 TEST_DECTECTED_IMAGE_PATH = ""
 TEST_SCORE_THRESHOLD = 0.3
-TEST_IOU_THRESHOLD = 0.45
+TEST_IOU_THRESHOLD = 0.5
 
