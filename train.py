@@ -89,6 +89,11 @@ def _main():
     model_path = PATH_MODEL
 
     # =======================================================
+    #   Directory to store the model weigths
+    # =======================================================
+    log_dir = LOG_DIR
+
+    # =======================================================
     #   The size of the input shape must be a multiple of 32
     # =======================================================
     image_shape = (IMAGE_SIZE[0], IMAGE_SIZE[1], 3)
@@ -230,6 +235,8 @@ def _main():
             callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
         )
 
+        model.save_weights(log_dir + 'trained_weights_stage_1.h5')
+
     # =======================================================
     #   Unfreeze layers trainability
     #   Continue training
@@ -255,6 +262,8 @@ def _main():
             workers=num_workers,
             callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
         )
+
+        model.save_weights(log_dir + 'trained_weights_final.h5')
 
 
 if __name__ == '__main__':

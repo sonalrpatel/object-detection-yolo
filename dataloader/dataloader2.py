@@ -42,7 +42,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         self.input_shape = IMAGE_SIZE
         self.anchors_mask = YOLO_ANCHORS_MASK
         self.num_scales = len(self.anchors_mask)
-        self.num_images = len(self.img_bboxes_pairs)
+        self.num_samples = len(self.img_bboxes_pairs)
         self.classes, self.num_classes = get_classes(PATH_CLASSES)
         self.anchors, self.num_anchors = get_anchors(PATH_ANCHORS)
 
@@ -50,7 +50,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         """
         Denotes the number of batches per epoch
         """""
-        return math.ceil(self.num_images / float(self.batch_size))
+        return math.ceil(self.num_samples / float(self.batch_size))
 
     def __getitem__(self, index):
         """

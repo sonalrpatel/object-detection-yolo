@@ -69,3 +69,5 @@ TEST_DECTECTED_IMAGE_PATH = ""
 TEST_SCORE_THRESHOLD = 0.3
 TEST_IOU_THRESHOLD = 0.5
 
+# LOG directory
+LOG_DIR = "D:/01_PythonAIML/06_myProjects/object-detection-yolo3/logs/weights/"
