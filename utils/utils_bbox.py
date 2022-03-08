@@ -5,6 +5,34 @@ from tensorflow.keras.layers import Input
 
 
 # ==============================================================
+# adjust with box coordinates to match the original image
+# ==============================================================
+def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image):
+    # ==============================================================
+    # revers y ans h to first dimension
+    # ==============================================================
+    box_yx = box_xy[..., ::-1]
+    box_hw = box_wh[..., ::-1]
+    input_shape = K.cast(input_shape, K.dtype(box_yx))
+    image_shape = K.cast(image_shape, K.dtype(box_yx))
+
+    if letterbox_image:
+        new_shape = K.round(image_shape * K.min(input_shape / image_shape))
+        offset = (input_shape - new_shape) / 2. / input_shape
+        scale = input_shape / new_shape
+
+        box_yx = (box_yx - offset) * scale
+        box_hw *= scale
+
+    box_mins = box_yx - (box_hw / 2.)
+    box_maxes = box_yx + (box_hw / 2.)
+    boxes = K.concatenate([box_mins[..., 0:1], box_mins[..., 1:2], box_maxes[..., 0:1], box_maxes[..., 1:2]])
+    boxes *= K.concatenate([image_shape, image_shape])
+
+    return boxes
+
+
+# ==============================================================
 #   Adjust predicted result to align with original image
 #   Convert final layer features to bounding box parameters
 # ==============================================================
@@ -76,6 +104,97 @@ def get_pred_boxes(final_layer_feats, anchors, num_classes, input_shape, calc_lo
         ret = [box_xy, box_wh, box_confidence, box_class_probs]
 
     return ret
+
+
+# ==============================================================
+#   decode model outputs and return
+#   1 - box coordinates (x1, y1, x2, y2)
+#   2 - confidence score
+#   3 - classes score
+# ==============================================================
+def DecodeBox(outputs,  # outputs from YoloV3
+              anchors,  # pre-defined anchors in configuration
+              num_classes,  # COCO=80, VOC=20
+              input_shape,  # image shape 416 * 416
+              # ==============================================================
+              #   13x13's anchor are [116,90],[156,198],[373,326]
+              #   26x26's anchors are [30,61],[62,45],[59,119]
+              #   52x52's anchors are [10,13],[16,30],[33,23]
+              # ==============================================================
+              anchor_mask=[[6, 7, 8], [3, 4, 5], [0, 1, 2]],
+              max_boxes=100,
+              confidence=0.5,
+              nms_iou=0.3,
+              letterbox_image=True):
+    # reshape
+    image_shape = K.reshape(outputs[-1], [-1])
+
+    box_xy = []
+    box_wh = []
+    box_confidence = []
+    box_class_probs = []
+    # loop number of pre-defined anchors (by default is 3)
+    for i in range(len(anchor_mask)):
+        sub_box_xy, sub_box_wh, sub_box_confidence, sub_box_class_probs = \
+            get_pred_boxes(outputs[i], anchors[anchor_mask[i]], num_classes, input_shape)
+        box_xy.append(K.reshape(sub_box_xy, [-1, 2]))
+        box_wh.append(K.reshape(sub_box_wh, [-1, 2]))
+        box_confidence.append(K.reshape(sub_box_confidence, [-1, 1]))
+        box_class_probs.append(K.reshape(sub_box_class_probs, [-1, num_classes]))
+
+    box_xy = K.concatenate(box_xy, axis=0)
+    box_wh = K.concatenate(box_wh, axis=0)
+    box_confidence = K.concatenate(box_confidence, axis=0)
+    box_class_probs = K.concatenate(box_class_probs, axis=0)
+
+    # ==============================================================
+    #   Before image pass into Yolo network there is a pre-process method letter_box_image will padding gray points
+    #       around image if size is not enough.
+    #   So predicted box_xy, box_wh need to be adjusted to align with previous image and convert to Xmin, Ymin and
+    #       Xmax, Ymax format.
+    #   If model skip letterbox_image pre-process method, here still need to scale up to align with
+    #       original image due to normalization.
+    # ==============================================================
+    boxes = yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image)
+
+    box_scores = box_confidence * box_class_probs
+
+    # -----------------------------------------------------------#
+    #   is box score greater than score threshold
+    # -----------------------------------------------------------#
+    mask = box_scores >= confidence
+    max_boxes_tensor = K.constant(max_boxes, dtype='int32')
+    boxes_out = []
+    scores_out = []
+    classes_out = []
+    for c in range(num_classes):
+        # -----------------------------------------------------------#
+        #   retrieve all the boxes and box scores >= score threshold
+        # -----------------------------------------------------------#
+        class_boxes = tf.boolean_mask(boxes, mask[:, c])
+        class_box_scores = tf.boolean_mask(box_scores[:, c], mask[:, c])
+
+        # -----------------------------------------------------------#
+        #   retrieve NMS index via IOU threshold
+        # -----------------------------------------------------------#
+        nms_index = tf.image.non_max_suppression(class_boxes, class_box_scores, max_boxes_tensor, iou_threshold=nms_iou)
+
+        # -----------------------------------------------------------#
+        #   retrieve boxes, boxes scores and classes via NMS index
+        # -----------------------------------------------------------#
+        class_boxes = K.gather(class_boxes, nms_index)
+        class_box_scores = K.gather(class_box_scores, nms_index)
+        classes = K.ones_like(class_box_scores, 'int32') * c
+
+        boxes_out.append(class_boxes)
+        scores_out.append(class_box_scores)
+        classes_out.append(classes)
+
+    boxes_out = K.concatenate(boxes_out, axis=0)
+    scores_out = K.concatenate(scores_out, axis=0)
+    classes_out = K.concatenate(classes_out, axis=0)
+
+    return boxes_out, scores_out, classes_out
 
 
 if __name__ == "__main__":
