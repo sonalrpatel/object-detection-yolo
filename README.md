@@ -35,22 +35,22 @@
 * https://machinelearningspace.com/yolov3-tensorflow-2-part-1/
 * https://sheng-fang.github.io/2020-04-29-implement_yolo/ 
 * "model build - data loading - train - predict"
+* https://pylessons.com/YOLOv3-TF2-introduction/
 * https://github.com/zzh8829/yolov3-tf2
 * https://pythonrepo.com/repo/Qucy-yolo3-tf2 (good details for concepts-model/loss/bbox)
-* https://pylessons.com/YOLOv3-TF2-introduction/
 * https://github.com/Qucy/yolo3-tf2
-* https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
+* https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3 (additional good references)
 * https://github.com/pythonlessons/YOLOv3-object-detection-tutorial/tree/master/YOLOv3-custom-training
 * https://github.com/experiencor/keras-yolo3 (good class organisation, refer for generator+augmentation)
-* https://github.com/mystic123/tensorflow-yolo-v3
 * "Ok"
 * https://github.com/AtharvaMusale/Vehicle-Detection-and-Tracking-using-YOLOv3-and-Deep-Sort
-* https://github.com/experiencor/keras-yolo3
 * "load yolo weights"
 * https://pjreddie.com/darknet/yolo/
 * https://itnext.io/implementing-yolo-v3-in-tensorflow-tf-slim-c3c55ff59dbe
+* https://github.com/mystic123/tensorflow-yolo-v3
 * https://machinelearningspace.com/yolov3-tensorflow-2-part-3/
 * https://github.com/qqwweee/keras-yolo3
+* https://pylessons.com/YOLOv3-custom-training
 
 ### YOLOv5
 * https://www.analyticsvidhya.com/blog/2021/12/how-to-use-yolo-v5-object-detection-algorithm-for-custom-object-detection-an-example-use-case/
@@ -61,3 +61,8 @@
 ### Custom Loss
 * https://cnvrg.io/keras-custom-loss-functions/
 * https://www.kaggle.com/c/pku-autonomous-driving/discussion/113928
+
+### Data Format
+* https://towardsdatascience.com/coco-data-format-for-object-detection-a4c5eaf518c5
+* https://cocodataset.org/#home
+* http://host.robots.ox.ac.uk/pascal/VOC/index.html
