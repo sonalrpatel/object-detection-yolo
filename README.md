@@ -54,6 +54,13 @@
 * https://github.com/qqwweee/keras-yolo3
 * https://machinelearningspace.com/yolov3-tensorflow-2-part-3/
 * https://pylessons.com/YOLOv3-custom-training
+* "load yolo weights (yolo3)"
+* https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/
+* https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py
+* "load yolo weights (yolo4)"
+* https://dsbyprateekg.blogspot.com/2020/06/how-to-convert-your-yolov4-weights-to.html
+* https://medium.com/@ravindrareddysiddam/how-to-convert-yolov4-from-weights-to-h5-format-b50b244b3298
+* https://github.com/dsbyprateekg/YOLOv4/blob/master/yolov4_to_tf2.ipynb
 
 ### YOLOv5
 * https://www.analyticsvidhya.com/blog/2021/12/how-to-use-yolo-v5-object-detection-algorithm-for-custom-object-detection-an-example-use-case/
