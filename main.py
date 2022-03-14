@@ -1,4 +1,4 @@
-from model.model import YOLOv3
+from model.model_functional import YOLOv3
 
 
 if __name__ == "__main__":
@@ -7,8 +7,5 @@ if __name__ == "__main__":
     image_shape = (IMAGE_SIZE, IMAGE_SIZE, 3)
 
     model = YOLOv3().model()
-
-    # input_tensor = Input(image_shape)
-    # output_tensor = model(input_tensor)
 
     print(model.summary())

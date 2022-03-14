@@ -3,7 +3,7 @@ from tensorflow.keras.optimizers import Adam
 
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Lambda
-from model.yolov3 import YOLOv3
+from model.model_functional import YOLOv3
 # from dataloader.dataloader import *
 from dataloader.dataloader2 import *
 from loss.loss import YoloLoss

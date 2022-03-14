@@ -1,118 +1,148 @@
 """
 Implementation of YOLOv3 architecture
 """
-from abc import ABC
+
+import os
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, Add, ZeroPadding2D, UpSampling2D, Concatenate, MaxPooling2D
-from tensorflow.keras.layers import Layer, LeakyReLU, BatchNormalization
+from tensorflow.keras.layers import Conv2D, ZeroPadding2D, UpSampling2D
+from tensorflow.keras.layers import LeakyReLU, BatchNormalization, add, concatenate
 from tensorflow.keras import Input, Model
-from tensorflow.keras.regularizers import l2
-
-from loss.loss import YoloLoss
+from utils.utils import WeightReader
 
 
-"""
-Information about architecture config:
-Tuple is structured by (filters, kernel_size, stride) 
-Every conv is a same convolution. 
-List is structured by "B" indicating a residual block followed by the number of repeats
-"S" is for scale prediction block and computing the yolo loss
-"U" is for upsampling the feature map and concatenating with a previous layer
-"""
+def _conv_block(inp, convs, skip=True):
+    x = inp
+    count = 0
+
+    for conv in convs:
+        if count == (len(convs) - 2) and skip:
+            skip_connection = x
+        count += 1
+
+        if conv['stride'] > 1: x = ZeroPadding2D(((1, 0), (1, 0)))(x)  # peculiar padding as darknet prefer left and top
+        x = Conv2D(conv['filter'],
+                   conv['kernel'],
+                   strides=conv['stride'],
+                   padding='valid' if conv['stride'] > 1 else 'same',  # peculiar padding as darknet prefer left and top
+                   name='conv_' + str(conv['layer_idx']),
+                   use_bias=False if conv['bnorm'] else True)(x)
+        if conv['bnorm']: x = BatchNormalization(epsilon=0.001, name='bnorm_' + str(conv['layer_idx']))(x)
+        if conv['leaky']: x = LeakyReLU(alpha=0.1, name='leaky_' + str(conv['layer_idx']))(x)
+
+    return add([skip_connection, x]) if skip else x
 
 
-def DarknetConv2D(inputs, n_filters, kernel_size=(3, 3), down_sample=False):
-    if down_sample:
-        x = ZeroPadding2D(((1, 0), (1, 0)))(inputs)
-        x = Conv2D(n_filters, kernel_size=kernel_size, strides=(2, 2), padding='valid')(x)
-    else:
-        x = Conv2D(n_filters, kernel_size=kernel_size, strides=(1, 1), padding='same')(inputs)
+def make_yolov3_model():
+    input_image = Input(shape=(None, None, 3))
 
-    return x
+    # Layer  0 => 4
+    x = _conv_block(input_image,
+                    [{'filter': 32, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 0},
+                     {'filter': 64, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 1},
+                     {'filter': 32, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 2},
+                     {'filter': 64, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 3}])
 
+    # Layer  5 => 8
+    x = _conv_block(x, [{'filter': 128, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 5},
+                        {'filter': 64, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 6},
+                        {'filter': 128, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 7}])
 
-def DarknetConv2D_BN_Leaky(inputs, n_filters, kernel_size=(3, 3), down_sample=False, bn_act=True):
-    x = DarknetConv2D(inputs, n_filters, kernel_size=kernel_size, down_sample=down_sample)
-    if bn_act:
-        x = BatchNormalization()(x)
-        x = LeakyReLU(0.1)(x)
+    # Layer  9 => 11
+    x = _conv_block(x, [{'filter': 64, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 9},
+                        {'filter': 128, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 10}])
 
-    return x
+    # Layer 12 => 15
+    x = _conv_block(x, [{'filter': 256, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 12},
+                        {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 13},
+                        {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 14}])
 
+    # Layer 16 => 36
+    for i in range(7):
+        x = _conv_block(x, [
+            {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 16 + i * 3},
+            {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 17 + i * 3}])
 
-def ResidualBlock(inputs, n_filters, use_residual=True, n_repeats=1):
-    x = inputs
-    for i in range(n_repeats):
-        y = DarknetConv2D_BN_Leaky(x, n_filters // 2, kernel_size=(1, 1))
-        y = DarknetConv2D_BN_Leaky(y, n_filters)
-        if use_residual:
-            x = Add()([x, y])
+    skip_36 = x
 
-    return x
+    # Layer 37 => 40
+    x = _conv_block(x, [{'filter': 512, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 37},
+                        {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 38},
+                        {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 39}])
 
+    # Layer 41 => 61
+    for i in range(7):
+        x = _conv_block(x, [
+            {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 41 + i * 3},
+            {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 42 + i * 3}])
 
-def DarkNet53(inputs):
-    x = DarknetConv2D_BN_Leaky(inputs, 32)
+    skip_61 = x
 
-    x = DarknetConv2D_BN_Leaky(x, 64, down_sample=True)
-    x = ResidualBlock(x, 64, n_repeats=1)
+    # Layer 62 => 65
+    x = _conv_block(x, [{'filter': 1024, 'kernel': 3, 'stride': 2, 'bnorm': True, 'leaky': True, 'layer_idx': 62},
+                        {'filter': 512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 63},
+                        {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 64}])
 
-    x = DarknetConv2D_BN_Leaky(x, 128, down_sample=True)
-    x = ResidualBlock(x, 128, n_repeats=2)
+    # Layer 66 => 74
+    for i in range(3):
+        x = _conv_block(x, [
+            {'filter': 512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 66 + i * 3},
+            {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 67 + i * 3}])
 
-    x = DarknetConv2D_BN_Leaky(x, 256, down_sample=True)
-    x = ResidualBlock(x, 256, n_repeats=8)
-    skip1 = x
+    # Layer 75 => 79
+    x = _conv_block(x, [{'filter': 512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 75},
+                        {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 76},
+                        {'filter': 512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 77},
+                        {'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 78},
+                        {'filter': 512, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 79}],
+                    skip=False)
 
-    x = DarknetConv2D_BN_Leaky(x, 512, down_sample=True)
-    x = ResidualBlock(x, 512, n_repeats=8)
-    skip2 = x
+    # Layer 80 => 82
+    yolo_82 = _conv_block(x, [{'filter': 1024, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 80},
+                              {'filter': 255, 'kernel': 1, 'stride': 1, 'bnorm': False, 'leaky': False,
+                               'layer_idx': 81}], skip=False)
 
-    x = DarknetConv2D_BN_Leaky(x, 1024, down_sample=True)
-    x = ResidualBlock(x, 1024, n_repeats=4)
+    # Layer 83 => 86
+    x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 84}],
+                    skip=False)
+    x = UpSampling2D(2)(x)
+    x = concatenate([x, skip_61])
 
-    return skip1, skip2, x
+    # Layer 87 => 91
+    x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 87},
+                        {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 88},
+                        {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 89},
+                        {'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 90},
+                        {'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 91}],
+                    skip=False)
 
+    # Layer 92 => 94
+    yolo_94 = _conv_block(x, [{'filter': 512, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 92},
+                              {'filter': 255, 'kernel': 1, 'stride': 1, 'bnorm': False, 'leaky': False,
+                               'layer_idx': 93}], skip=False)
 
-def UpSampleConv(inputs, n_filters):
-    if not tf.is_tensor(inputs):
-        x = DarknetConv2D_BN_Leaky(inputs[0], n_filters, kernel_size=(1, 1))
-        x = UpSampling2D(2)(x)
-        x = Concatenate(axis=-1)([x, inputs[1]])
-    else:
-        x = inputs
-    x = DarknetConv2D_BN_Leaky(x, n_filters, kernel_size=(1, 1))    # 512, 1x1
-    x = DarknetConv2D_BN_Leaky(x, n_filters * 2)                    # 1024, 3x3
-    x = DarknetConv2D_BN_Leaky(x, n_filters, kernel_size=(1, 1))    # 512, 1x1
-    x = DarknetConv2D_BN_Leaky(x, n_filters * 2)                    # 1024, 3x3
-    x = DarknetConv2D_BN_Leaky(x, n_filters, kernel_size=(1, 1))    # 512, 1x1
+    # Layer 95 => 98
+    x = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 96}],
+                    skip=False)
+    x = UpSampling2D(2)(x)
+    x = concatenate([x, skip_36])
 
-    return x
+    # Layer 99 => 106
+    yolo_106 = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 99},
+                               {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True,
+                                'layer_idx': 100},
+                               {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True,
+                                'layer_idx': 101},
+                               {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True,
+                                'layer_idx': 102},
+                               {'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True,
+                                'layer_idx': 103},
+                               {'filter': 256, 'kernel': 3, 'stride': 1, 'bnorm': True, 'leaky': True,
+                                'layer_idx': 104},
+                               {'filter': 255, 'kernel': 1, 'stride': 1, 'bnorm': False, 'leaky': False,
+                                'layer_idx': 105}], skip=False)
 
-
-def ScalePrediction(inputs, n_filters, num_classes):
-    x = DarknetConv2D_BN_Leaky(inputs, n_filters)                   # 13x13x1024/26x26x512/52x52x256, 3x3
-    x = DarknetConv2D_BN_Leaky(x, 3 * (num_classes + 5), \
-                               kernel_size=(1, 1), bn_act=False)    # 13x13x255/26x26x255/52x52x255, 1x1
-
-    return x
-
-
-def YOLOv3(input_shape=(416, 416, 3), num_classes=80):
-    x = Input(input_shape)
-
-    def model(inputs, num_classes):
-        skip1, skip2, x = DarkNet53(inputs)
-        x = UpSampleConv(x, 512)
-        y_lbbox = ScalePrediction(x, 1024, num_classes)
-        x = UpSampleConv([x, skip2], 256)
-        y_mbbox = ScalePrediction(x, 512, num_classes)
-        x = UpSampleConv([x, skip1], 128)
-        y_sbbox = ScalePrediction(x, 256, num_classes)
-
-        return [y_lbbox, y_mbbox, y_sbbox]
-
-    return Model(inputs=[x], outputs=model(x, num_classes))
+    model = Model(input_image, [yolo_82, yolo_94, yolo_106])
+    return model
 
 
 if __name__ == "__main__":
@@ -120,9 +150,21 @@ if __name__ == "__main__":
     image_size = 416
     image_shape = (image_size, image_size, 3)
 
-    model = YOLOv3(image_shape, num_classes)
+    # define the model
+    yolov3 = make_yolov3_model()
+
+    # load the model weights
+    rel_path = "../data/yolov3.weights"
+    abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
+    weight_reader = WeightReader(abs_file_path)
+
+    # set the model weights into the model
+    weight_reader.load_weights(yolov3)
+
+    # save the model to file
+    yolov3.save('../data/yolov3_model.h5')
 
     input_tensor = Input(image_shape)
-    output_tensor = model(input_tensor)
+    output_tensor = yolov3(input_tensor)
 
-    print(model.summary())
+    print(yolov3.summary())
