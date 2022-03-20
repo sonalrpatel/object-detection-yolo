@@ -20,14 +20,12 @@ List is structured by "B" indicating a residual block followed by the number of 
 
 
 def DarknetConv2D_BN_Leaky(inputs, n_filters, kernel_size=(3, 3), down_sample=False, bn_act=True, layer_idx=None):
+    strides = (2, 2) if down_sample else (1, 1)
+    padding = 'valid' if down_sample else 'same'
     use_bias = False if bn_act else True
-    if down_sample:
-        x = ZeroPadding2D(((1, 0), (1, 0)))(inputs)
-        x = Conv2D(n_filters, kernel_size=kernel_size, strides=(2, 2), padding='valid',
-                   use_bias=use_bias, name='conv_' + str(layer_idx))(x)
-    else:
-        x = Conv2D(n_filters, kernel_size=kernel_size, strides=(1, 1), padding='same',
-                   use_bias=use_bias, name='conv_' + str(layer_idx))(inputs)
+
+    x = Conv2D(n_filters, kernel_size=kernel_size, strides=strides, padding=padding, use_bias=use_bias,
+               name='conv_' + str(layer_idx))(inputs)
     if bn_act:
         x = BatchNormalization(name='bnorm_' + str(layer_idx))(x)
         x = LeakyReLU(alpha=0.1, name='leaky_' + str(layer_idx))(x)
@@ -36,7 +34,8 @@ def DarknetConv2D_BN_Leaky(inputs, n_filters, kernel_size=(3, 3), down_sample=Fa
 
 
 def ResidualBlock(inputs, n_filters, n_repeats=1, layer_idx=None):
-    x = DarknetConv2D_BN_Leaky(inputs, n_filters, down_sample=True, layer_idx=layer_idx)
+    x = ZeroPadding2D(((1, 0), (1, 0)))(inputs)
+    x = DarknetConv2D_BN_Leaky(x, n_filters, down_sample=True, layer_idx=layer_idx)
     for i in range(n_repeats):
         y = DarknetConv2D_BN_Leaky(x, n_filters // 2, kernel_size=(1, 1), layer_idx=layer_idx + 1 + (i * 3))
         y = DarknetConv2D_BN_Leaky(y, n_filters, layer_idx=layer_idx + 2 + (i * 3))
@@ -48,20 +47,20 @@ def ResidualBlock(inputs, n_filters, n_repeats=1, layer_idx=None):
 def DarkNet53(inputs, layer_idx=0):
     # Layer 0
     x = DarknetConv2D_BN_Leaky(inputs, 32, layer_idx=layer_idx)
-    # Layer 1 (+1*3) => 4
+    # Layer 1 (+3*1) => 4
     x = ResidualBlock(x, 64, n_repeats=1, layer_idx=layer_idx + 1)
-    # Layer 5 (+2*3) => 11
+    # Layer 5 (+3*2) => 11
     x = ResidualBlock(x, 128, n_repeats=2, layer_idx=layer_idx + 5)
-    # Layer 12 (+8*3) => 36
+    # Layer 12 (+3*8) => 36
     x = ResidualBlock(x, 256, n_repeats=8, layer_idx=layer_idx + 12)
-    skip1 = x
-    # Layer 37 (+8*3) => 61
+    skip_36 = x
+    # Layer 37 (+3*8) => 61
     x = ResidualBlock(x, 512, n_repeats=8, layer_idx=layer_idx + 37)
-    skip2 = x
-    # Layer 62 (+4*3) => 74
+    skip_61 = x
+    # Layer 62 (+3*4) => 74
     x = ResidualBlock(x, 1024, n_repeats=4, layer_idx=layer_idx + 62)
 
-    return skip1, skip2, x
+    return skip_36, skip_61, x
 
 
 def UpSampleConv(inputs, n_filters, layer_idx=0):
@@ -94,17 +93,20 @@ def YOLOv3(input_shape=(416, 416, 3), num_classes=80):
 
     def model(inputs, num_classes):
         # Layer 0 => 74
-        skip1, skip2, x = DarkNet53(inputs, layer_idx=0)
+        skip_36, skip_61, x = DarkNet53(inputs, layer_idx=0)
+
         # Layer 75 => 79
         x = UpSampleConv(x, 512, layer_idx=75)
         # Layer 80 => 81
         y_lbbox = ScalePrediction(x, 1024, num_classes, layer_idx=80)
+
         # Layer 84 => 91
-        x = UpSampleConv([x, skip2], 256, layer_idx=84)
+        x = UpSampleConv([x, skip_61], 256, layer_idx=84)
         # Layer 92 => 93
         y_mbbox = ScalePrediction(x, 512, num_classes, layer_idx=92)
+
         # Layer 96 => 103
-        x = UpSampleConv([x, skip1], 128, layer_idx=96)
+        x = UpSampleConv([x, skip_36], 128, layer_idx=96)
         # Layer 104 => 105
         y_sbbox = ScalePrediction(x, 256, num_classes, layer_idx=104)
 

@@ -32,7 +32,7 @@ def get_anchors(anchors_path):
 #   Convert image to RGB
 #   Currently only support RGB, all the image should convert to RGB before send into model
 # ===================================================================
-def cvtColor(image):
+def convert2rgb(image):
     if len(np.shape(image)) == 3 and np.shape(image)[2] == 3:
         return image
     else:
@@ -41,22 +41,22 @@ def cvtColor(image):
 
 
 def resize_image(image, size, letterbox_image):
-    iw, ih = image.size
-    w, h = size
+    in_w, in_h = image.size
+    net_w, net_h = size
     if letterbox_image:
-        scale = min(w / iw, h / ih)
-        nw = int(iw * scale)
-        nh = int(ih * scale)
+        scale = min(net_w / in_w, net_h / in_h)
+        int_w = int(in_w * scale)
+        int_h = int(in_h * scale)
 
-        image = image.resize((nw, nh), Image.BICUBIC)
+        image = image.resize((int_w, int_h), Image.BICUBIC)
         new_image = Image.new('RGB', size, (128, 128, 128))
-        new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
+        new_image.paste(image, ((net_w - int_w) // 2, (net_h - int_h) // 2))
     else:
-        new_image = image.resize((w, h), Image.BICUBIC)
+        new_image = image.resize((net_w, net_h), Image.BICUBIC)
     return new_image
 
 
-def preprocess_input(image):
+def normalize_input(image):
     image /= 255.0
     return image
 

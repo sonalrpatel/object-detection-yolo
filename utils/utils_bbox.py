@@ -162,7 +162,7 @@ def DecodeBox(outputs,  # outputs from YoloV3
     # -----------------------------------------------------------#
     #   is box score greater than score threshold
     # -----------------------------------------------------------#
-    mask = box_scores >= confidence
+    mask = (box_scores >= confidence)
     max_boxes_tensor = K.constant(max_boxes, dtype='int32')
     boxes_out = []
     scores_out = []

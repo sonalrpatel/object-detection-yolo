@@ -16,7 +16,7 @@ from tensorflow.keras.models import Model
 
 from utils.utils import *
 from utils.utils_bbox import *
-from model.yolov3 import YOLOv3
+from model.model_functional import YOLOv3
 
 
 class YoloResult(object):
@@ -33,7 +33,8 @@ class YoloResult(object):
         #   If the shape does not match, pay attention to the modification of the model_path
         #       and classes_path parameters during training
         # =====================================================================
-        "model_path": 'logs/self_trained_yolo_weights.h5',
+        "weights_path": 'data/yolov3.weights',
+        "model_path": 'data/yolov3_model.h5',
         "classes_path": 'data/coco_classes.txt',
 
         # =====================================================================
@@ -106,7 +107,11 @@ class YoloResult(object):
         assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
 
         self.yolo_model = YOLOv3([None, None, 3], self.num_classes)
-        self.yolo_model.load_weights(self.model_path)
+
+        weight_reader = WeightReader(self.weights_path)
+        weight_reader.load_weights(self.yolo_model)
+
+        # self.yolo_model.load_weights(self.model_path)
 
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
@@ -132,7 +137,7 @@ class YoloResult(object):
             }
         )(inputs)
 
-        self.yolo_model = Model([self.yolo_model.input, self.input_image_shape], outputs)
+        self.yolo_model1 = Model([self.yolo_model.input, self.input_image_shape], outputs)
 
     @tf.function
     def get_pred(self, image_data, input_image_shape):
@@ -148,7 +153,7 @@ class YoloResult(object):
         #   Convert the image to an RGB image here to prevent an error in the prediction of the grayscale image.
         #   The code only supports prediction of RGB images, all other types of images will be converted to RGB
         # =====================================================================
-        image = cvtColor(image)
+        image = convert2rgb(image)
 
         # =====================================================================
         #   Add gray bars to the image to achieve undistorted resize
@@ -157,23 +162,29 @@ class YoloResult(object):
         image_data = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
 
         # =====================================================================
-        #   Add the batch_size dimension and normalize it
+        #   Normalize the image
         # =====================================================================
-        image_data = np.expand_dims(preprocess_input(np.array(image_data, dtype='float32')), 0)
+        image_data = normalize_input(np.array(image_data, dtype='float32'))
+
+        # =====================================================================
+        #   Add the batch_size dimension
+        # =====================================================================
+        image_data = np.expand_dims(image_data, 0)
+
+        yolos = self.yolo_model.predict(image_data)
 
         # =====================================================================
         #   Feed the image into the network to make predictions!
         # =====================================================================
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.get_pred(image_data, input_image_shape)
+        out_boxes, out_scores, out_classes = self.yolo_model1([image_data, input_image_shape])
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
         # =====================================================================
         #   Set font and border thickness
         # =====================================================================
-        font = ImageFont.truetype(font='model_data/simhei.ttf',
-                                  size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        font = ImageFont.truetype(font='data/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
         thickness = int(max((image.size[0] + image.size[1]) // np.mean(self.input_shape), 1))
 
         # =====================================================================
@@ -215,7 +226,7 @@ class YoloResult(object):
         #   Convert the image to an RGB image here to prevent an error in the prediction of the grayscale image.
         #   The code only supports prediction of RGB images, all other types of images will be converted to RGB
         # =====================================================================
-        image = cvtColor(image)
+        image = convert2rgb(image)
 
         # =====================================================================
         #   Add gray bars to the image to achieve undistorted resize
@@ -226,7 +237,7 @@ class YoloResult(object):
         # =====================================================================
         #   Add the batch_size dimension and normalize it
         # =====================================================================
-        image_data = np.expand_dims(preprocess_input(np.array(image_data, dtype='float32')), 0)
+        image_data = np.expand_dims(normalize_input(np.array(image_data, dtype='float32')), 0)
 
         # =====================================================================
         #   Feed the image into the network to make predictions!
@@ -250,7 +261,7 @@ class YoloResult(object):
         # =====================================================================
         #   Convert the image to an RGB image here to prevent the grayscale image from making errors during prediction.
         # =====================================================================
-        image = cvtColor(image)
+        image = convert2rgb(image)
 
         # =====================================================================
         #   Add gray bars to the image to achieve undistorted resize
@@ -261,7 +272,7 @@ class YoloResult(object):
         # =====================================================================
         #   Add the batch_size dimension and normalize it
         # =====================================================================
-        image_data = np.expand_dims(preprocess_input(np.array(image_data, dtype='float32')), 0)
+        image_data = np.expand_dims(normalize_input(np.array(image_data, dtype='float32')), 0)
 
         # =====================================================================
         #   Feed the image into the network to make predictions!
@@ -344,16 +355,10 @@ if __name__ == "__main__":
     #       and then record the number. Use draw.text to write.
     # =====================================================================
     if mode == "predict":
-        while True:
-            img = input('Input image filename:')
-            try:
-                image = Image.open(img)
-            except:
-                print('Open Error! Try again!')
-                continue
-            else:
-                r_image = yolo.detect_image(image)
-                r_image.show()
+        # image = Image.open("D:/01_PythonAIML/06_myProjects/yolo3-tf2/img/street.jpg")
+        image = Image.open("D:/01_PythonAIML/06_myProjects/object-detection-yolo3/data/apple.jpg")
+        r_image = yolo.detect_image(image)
+        r_image.show()
 
     elif mode == "video":
         capture = cv2.VideoCapture(video_origin_path)
