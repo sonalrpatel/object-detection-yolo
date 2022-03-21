@@ -1,4 +1,3 @@
-import argparse
 import os
 import cv2
 import struct
@@ -7,6 +6,10 @@ from tensorflow.keras.layers import Conv2D, Input, BatchNormalization, LeakyReLU
 from tensorflow.keras.layers import add, concatenate
 from tensorflow.keras.models import Model
 from model.model_functional import YOLOv3
+
+# References
+# This file is sourced from https://github.com/experiencor/keras-yolo3 repository
+# yolov3 weights is downloaded from https://pjreddie.com/media/files/yolov3.weights
 
 
 class WeightReader:
@@ -392,8 +395,11 @@ def draw_boxes(image, boxes, labels, obj_thresh):
 
 
 if __name__ == '__main__':
-    weights_path = "D:\\01_PythonAIML\\06_myProjects\\object-detection-yolo3\\data\\yolov3.weights"
-    image_path = "D:\\01_PythonAIML\\06_myProjects\\object-detection-yolo3\\data\\apple.jpg"
+    weights_path = "data/yolov3.weights"
+    image_path = "data/apple.jpg"
+
+    weights_path = os.path.join(os.path.dirname(__file__), weights_path)
+    image_path = os.path.join(os.path.dirname(__file__), image_path)
 
     # set some parameters
     net_h, net_w = 416, 416
@@ -411,16 +417,11 @@ if __name__ == '__main__':
               "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"]
 
     # make the yolov3 model to predict 80 classes on COCO
-    # yolov3 = make_yolov3_model()
-
-    yolov31 = YOLOv3([None, None, 3], 80)
-
-    # for l1, l2 in zip(yolov3.layers, yolov31.layers):
-    #     print(l1.get_config() == l2.get_config())
+    yolov3 = YOLOv3([None, None, 3], 80)
 
     # load the weights trained on COCO into the model
     weight_reader = WeightReader(weights_path)
-    weight_reader.load_weights(yolov31)
+    weight_reader.load_weights(yolov3)
 
     # preprocess the image
     image = cv2.imread(image_path)
@@ -428,7 +429,7 @@ if __name__ == '__main__':
     new_image = preprocess_input(image, net_h, net_w)
 
     # run the prediction
-    yolos = yolov31.predict(new_image)
+    yolos = yolov3.predict(new_image)
     boxes = []
 
     for i in range(len(yolos)):
@@ -445,4 +446,6 @@ if __name__ == '__main__':
     draw_boxes(image, boxes, labels, obj_thresh)
 
     # write the image with bounding boxes to file
-    cv2.imwrite(image_path[:-5] + '_detected' + '.jpg', (image).astype('uint8'))
+    cv2.imwrite(image_path.split('.')[0] + '_detected.jpg', (image).astype('uint8'))
+
+    print("Completed")
