@@ -34,7 +34,7 @@ class YoloResult(object):
         #       and classes_path parameters during training
         # =====================================================================
         "weights_path": 'data/yolov3.weights',
-        "model_path": 'data/yolov3_model.h5',
+        "model_path": 'data/yolov3.h5',
         "classes_path": 'data/coco_classes.txt',
 
         # =====================================================================
@@ -68,13 +68,6 @@ class YoloResult(object):
         "letterbox_image": True,
     }
 
-    @classmethod
-    def get_defaults(cls, n):
-        if n in cls._defaults:
-            return cls._defaults[n]
-        else:
-            return "Unrecognized attribute name '" + n + "'"
-
     # =====================================================================
     #   Initialize yolo
     # =====================================================================
@@ -103,17 +96,29 @@ class YoloResult(object):
     #   Load model
     # =====================================================================
     def generate(self):
-        model_path = os.path.expanduser(self.model_path)
-        assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        model_path = os.path.join(os.path.dirname(__file__), self.model_path)
+        weights_path = os.path.join(os.path.dirname(__file__), self.weights_path)
 
         self.yolo_model = YOLOv3([None, None, 3], self.num_classes)
 
-        weight_reader = WeightReader(self.weights_path)
-        weight_reader.load_weights(self.yolo_model)
+        try:
+            if os.path.isfile(model_path):
+                assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
 
-        # self.yolo_model.load_weights(self.model_path)
+                self.yolo_model.load_weights(model_path)
+                print('{} model, anchors, and classes loaded.'.format(model_path))
+            else:
+                raise Exception("Keras model does not present.")
+        except:
+            if os.path.isfile(weights_path):
+                assert weights_path.endswith('.weights'), 'Yolo weights must be a .weights file.'
 
-        print('{} model, anchors, and classes loaded.'.format(model_path))
+                weight_reader = WeightReader(weights_path)
+                weight_reader.load_weights(self.yolo_model)
+                self.yolo_model.save(weights_path.split('.')[0] + '.h5')
+                print('{} model, anchors, and classes loaded.'.format(weights_path))
+            else:
+                raise Exception("Yolo weights too does not present.")
 
         # =====================================================================
         #   In the DecodeBox function, we will post-process the prediction results
@@ -137,18 +142,12 @@ class YoloResult(object):
             }
         )(inputs)
 
-        self.yolo_model1 = Model([self.yolo_model.input, self.input_image_shape], outputs)
-
-    @tf.function
-    def get_pred(self, image_data, input_image_shape):
-        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape], training=False)
-
-        return out_boxes, out_scores, out_classes
+        self.yolo_model = Model([self.yolo_model.input, self.input_image_shape], outputs)
 
     # =====================================================================
-    #   Detect pictures
+    #   Preprocess image
     # =====================================================================
-    def detect_image(self, image):
+    def preprocess_image(self, image):
         # =====================================================================
         #   Convert the image to an RGB image here to prevent an error in the prediction of the grayscale image.
         #   The code only supports prediction of RGB images, all other types of images will be converted to RGB
@@ -165,19 +164,23 @@ class YoloResult(object):
         #   Normalize the image
         # =====================================================================
         image_data = normalize_input(np.array(image_data, dtype='float32'))
+        return image_data
 
+    # =====================================================================
+    #   Detect pictures
+    # =====================================================================
+    def detect_image(self, image):
         # =====================================================================
-        #   Add the batch_size dimension
+        #   Preprocess image and Add the batch_size dimension
         # =====================================================================
+        image_data = self.preprocess_image(image)
         image_data = np.expand_dims(image_data, 0)
-
-        yolos = self.yolo_model.predict(image_data)
 
         # =====================================================================
         #   Feed the image into the network to make predictions!
         # =====================================================================
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.yolo_model1([image_data, input_image_shape])
+        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
@@ -223,31 +226,20 @@ class YoloResult(object):
 
     def get_FPS(self, image, test_interval):
         # =====================================================================
-        #   Convert the image to an RGB image here to prevent an error in the prediction of the grayscale image.
-        #   The code only supports prediction of RGB images, all other types of images will be converted to RGB
+        #   Preprocess image and Add the batch_size dimension
         # =====================================================================
-        image = convert2rgb(image)
-
-        # =====================================================================
-        #   Add gray bars to the image to achieve undistorted resize
-        #   You can also directly resize for identification
-        # =====================================================================
-        image_data = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
-
-        # =====================================================================
-        #   Add the batch_size dimension and normalize it
-        # =====================================================================
-        image_data = np.expand_dims(normalize_input(np.array(image_data, dtype='float32')), 0)
+        image_data = self.preprocess_image(image)
+        image_data = np.expand_dims(image_data, 0)
 
         # =====================================================================
         #   Feed the image into the network to make predictions!
         # =====================================================================
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.get_pred(image_data, input_image_shape)
+        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
 
         t1 = time.time()
         for _ in range(test_interval):
-            out_boxes, out_scores, out_classes = self.get_pred(image_data, input_image_shape)
+            out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
 
         t2 = time.time()
         tact_time = (t2 - t1) / test_interval
@@ -257,29 +249,19 @@ class YoloResult(object):
     #   Detect pictures
     # =====================================================================
     def get_map_txt(self, image_id, image, class_names, map_out_path):
-        f = open(os.path.join(map_out_path, "detection-results/" + image_id + ".txt"), "w")
         # =====================================================================
-        #   Convert the image to an RGB image here to prevent the grayscale image from making errors during prediction.
+        #   Preprocess image and Add the batch_size dimension
         # =====================================================================
-        image = convert2rgb(image)
-
-        # =====================================================================
-        #   Add gray bars to the image to achieve undistorted resize
-        #   You can also directly resize for identification
-        # =====================================================================
-        image_data = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
-
-        # =====================================================================
-        #   Add the batch_size dimension and normalize it
-        # =====================================================================
-        image_data = np.expand_dims(normalize_input(np.array(image_data, dtype='float32')), 0)
+        image_data = self.preprocess_image(image)
+        image_data = np.expand_dims(image_data, 0)
 
         # =====================================================================
         #   Feed the image into the network to make predictions!
         # =====================================================================
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.get_pred(image_data, input_image_shape)
+        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
 
+        f = open(os.path.join(map_out_path, "detection-results/" + image_id + ".txt"), "w")
         for i, c in enumerate(out_classes):
             predicted_class = self.class_names[int(c)]
             try:
@@ -355,8 +337,8 @@ if __name__ == "__main__":
     #       and then record the number. Use draw.text to write.
     # =====================================================================
     if mode == "predict":
-        # image = Image.open("D:/01_PythonAIML/06_myProjects/yolo3-tf2/img/street.jpg")
-        image = Image.open("D:/01_PythonAIML/06_myProjects/object-detection-yolo3/data/apple.jpg")
+        image_path = "data/fruits.webp"
+        image = Image.open(os.path.join(os.path.dirname(__file__), image_path))
         r_image = yolo.detect_image(image)
         r_image.show()
 
@@ -409,7 +391,7 @@ if __name__ == "__main__":
         cv2.destroyAllWindows()
 
     elif mode == "fps":
-        img = Image.open('img/street.jpg')
+        img = Image.open('data/fruits.webp')
         tact_time = yolo.get_FPS(img, test_interval)
         print(str(tact_time) + ' seconds, ' + str(1 / tact_time) + 'FPS, @batch_size 1')
 

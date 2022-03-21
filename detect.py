@@ -395,9 +395,11 @@ def draw_boxes(image, boxes, labels, obj_thresh):
 
 
 if __name__ == '__main__':
+    model_path = "data/yolov3.h5"
     weights_path = "data/yolov3.weights"
     image_path = "data/apple.jpg"
 
+    model_path = os.path.join(os.path.dirname(__file__), model_path)
     weights_path = os.path.join(os.path.dirname(__file__), weights_path)
     image_path = os.path.join(os.path.dirname(__file__), image_path)
 
@@ -420,8 +422,9 @@ if __name__ == '__main__':
     yolov3 = YOLOv3([None, None, 3], 80)
 
     # load the weights trained on COCO into the model
-    weight_reader = WeightReader(weights_path)
-    weight_reader.load_weights(yolov3)
+    # weight_reader = WeightReader(weights_path)
+    # weight_reader.load_weights(yolov3)
+    yolov3.load_weights(model_path)
 
     # preprocess the image
     image = cv2.imread(image_path)

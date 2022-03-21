@@ -123,19 +123,18 @@ if __name__ == "__main__":
     # define the model
     model = YOLOv3(image_shape, num_classes)
 
-    # load the model weights
+    # read the model weights
     rel_path = "../data/yolov3.weights"
     abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
     weight_reader = WeightReader(abs_file_path)
 
-    # set the model weights into the model
+    # set/load the weights into the model
     weight_reader.load_weights(model)
 
-    # save the model to file
-    model.save('../data/yolov3_model.h5')
+    # save the model to .h5 file
+    model.save('../data/yolov3.h5')
 
-    model1 = YOLOv3(image_shape, num_classes)
-    model1.load_weights(os.path.join(os.path.dirname(__file__), '../data/yolov3_model.h5'))
+    model.load_weights(os.path.join(os.path.dirname(__file__), '../data/yolov3.h5'))
 
     input_tensor = Input(image_shape)
     output_tensor = model(input_tensor)
