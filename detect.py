@@ -6,6 +6,9 @@ from tensorflow.keras.layers import Conv2D, Input, BatchNormalization, LeakyReLU
 from tensorflow.keras.layers import add, concatenate
 from tensorflow.keras.models import Model
 from model.model_functional import YOLOv3
+from utils.utils import *
+from configs import *
+
 
 # References
 # This file is sourced from https://github.com/experiencor/keras-yolo3 repository
@@ -283,53 +286,59 @@ def preprocess_input(image, net_h, net_w):
 
     # embed the image into the standard letter box
     new_image = np.ones((net_h, net_w, 3)) * 0.5
-    new_image[int((net_h - new_h) // 2):int((net_h + new_h) // 2), int((net_w - new_w) // 2):int((net_w + new_w) // 2),:] = resized
+    new_image[int((net_h - new_h) // 2):int((net_h + new_h) // 2), int((net_w - new_w) // 2):int((net_w + new_w) // 2), :] = resized
     new_image = np.expand_dims(new_image, 0)
 
     return new_image
 
 
-def decode_netout(netout, anchors, obj_thresh, nms_thresh, net_h, net_w):
-    grid_h, grid_w = netout.shape[:2]
-    nb_box = 3
-    netout = netout.reshape((grid_h, grid_w, nb_box, -1))
-    nb_class = netout.shape[-1] - 5
+def decode_netout(yolos, anchors, anchors_mask, obj_thresh, nms_thresh, net_h, net_w):
+    boxes_all = []
+    for i in range(len(yolos)):
+        netout = yolos[i][0]
+        anchor_list = [int(k) for j in anchors[anchors_mask[i]] for k in j]
+        grid_h, grid_w = netout.shape[:2]
+        nb_box = 3
+        netout = netout.reshape((grid_h, grid_w, nb_box, -1))
+        nb_class = netout.shape[-1] - 5
 
-    boxes = []
+        boxes = []
 
-    netout[..., :2] = _sigmoid(netout[..., :2])
-    netout[..., 4:] = _sigmoid(netout[..., 4:])
-    netout[..., 5:] = netout[..., 4][..., np.newaxis] * netout[..., 5:]
-    netout[..., 5:] *= netout[..., 5:] > obj_thresh
+        netout[..., :2] = _sigmoid(netout[..., :2])
+        netout[..., 4:] = _sigmoid(netout[..., 4:])
+        netout[..., 5:] = netout[..., 4][..., np.newaxis] * netout[..., 5:]
+        netout[..., 5:] *= netout[..., 5:] > obj_thresh
 
-    for i in range(grid_h * grid_w):
-        row = i / grid_w
-        col = i % grid_w
+        for i in range(grid_h * grid_w):
+            row = i / grid_w
+            col = i % grid_w
 
-        for b in range(nb_box):
-            # 4th element is objectness score
-            objectness = netout[int(row)][int(col)][b][4]
-            # objectness = netout[..., :4]
+            for b in range(nb_box):
+                # 4th element is objectness score
+                objectness = netout[int(row)][int(col)][b][4]
+                # objectness = netout[..., :4]
 
-            if (objectness.all() <= obj_thresh): continue
+                if objectness.all() <= obj_thresh:
+                    continue
 
-            # first 4 elements are x, y, w, and h
-            x, y, w, h = netout[int(row)][int(col)][b][:4]
+                # first 4 elements are x, y, w, and h
+                x, y, w, h = netout[int(row)][int(col)][b][:4]
 
-            x = (col + x) / grid_w  # center position, unit: image width
-            y = (row + y) / grid_h  # center position, unit: image height
-            w = anchors[2 * b + 0] * np.exp(w) / net_w  # unit: image width
-            h = anchors[2 * b + 1] * np.exp(h) / net_h  # unit: image height  
+                x = (col + x) / grid_w  # center position, unit: image width
+                y = (row + y) / grid_h  # center position, unit: image height
+                w = anchor_list[2 * b + 0] * np.exp(w) / net_w  # unit: image width
+                h = anchor_list[2 * b + 1] * np.exp(h) / net_h  # unit: image height
 
-            # last elements are class probabilities
-            classes = netout[int(row)][col][b][5:]
+                # last elements are class probabilities
+                classes = netout[int(row)][col][b][5:]
 
-            box = BoundBox(x - w / 2, y - h / 2, x + w / 2, y + h / 2, objectness, classes)
-            # box = BoundBox(x-w/2, y-h/2, x+w/2, y+h/2, None, classes)
+                box = BoundBox(x - w / 2, y - h / 2, x + w / 2, y + h / 2, objectness, classes)
+                # box = BoundBox(x-w/2, y-h/2, x+w/2, y+h/2, None, classes)
 
-            boxes.append(box)
+                boxes.append(box)
 
-    return boxes
+        boxes_all += boxes
+    return boxes_all
 
 
 def correct_yolo_boxes(boxes, image_h, image_w, net_h, net_w):
@@ -394,7 +403,7 @@ def draw_boxes(image, boxes, labels, obj_thresh):
     return image
 
 
-if __name__ == '__main__':
+def _main():
     model_path = "data/yolov3.h5"
     weights_path = "data/yolov3.weights"
     image_path = "data/apple.jpg"
@@ -406,20 +415,24 @@ if __name__ == '__main__':
     # set some parameters
     net_h, net_w = 416, 416
     obj_thresh, nms_thresh = 0.5, 0.45
-    anchors = [[116, 90, 156, 198, 373, 326], [30, 61, 62, 45, 59, 119], [10, 13, 16, 30, 33, 23]]
-    labels = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck",
-              "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-              "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
-              "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
-              "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-              "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana",
-              "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
-              "chair", "sofa", "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse",
-              "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
-              "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"]
+
+    # =======================================================
+    #   Be sure to modify classes_path before training so that it corresponds to your own dataset
+    # =======================================================
+    classes_path = PATH_CLASSES
+
+    # =======================================================
+    #   Anchors_path represents the txt file corresponding to the a priori box, which is generally not modified
+    #   Anchors_mask is used to help the code find the corresponding a priori box and is generally not modified
+    # =======================================================
+    anchors_path = PATH_ANCHORS
+    anchors_mask = YOLO_ANCHORS_MASK
+    labels, num_classes = get_classes(classes_path)
+    anchors, num_anchors = get_anchors(anchors_path)
+    # anchors = [[116, 90, 156, 198, 373, 326], [30, 61, 62, 45, 59, 119], [10, 13, 16, 30, 33, 23]]
 
     # make the yolov3 model to predict 80 classes on COCO
-    yolov3 = YOLOv3([None, None, 3], 80)
+    yolov3 = YOLOv3([None, None, 3], num_classes)
 
     # load the weights trained on COCO into the model
     # weight_reader = WeightReader(weights_path)
@@ -433,11 +446,9 @@ if __name__ == '__main__':
 
     # run the prediction
     yolos = yolov3.predict(new_image)
-    boxes = []
 
-    for i in range(len(yolos)):
-        # decode the output of the network
-        boxes += decode_netout(yolos[i][0], anchors[i], obj_thresh, nms_thresh, net_h, net_w)
+    # decode the output of the network
+    boxes = decode_netout(yolos, anchors, anchors_mask, obj_thresh, nms_thresh, net_h, net_w)
 
     # correct the sizes of the bounding boxes
     correct_yolo_boxes(boxes, image_h, image_w, net_h, net_w)
@@ -449,6 +460,10 @@ if __name__ == '__main__':
     draw_boxes(image, boxes, labels, obj_thresh)
 
     # write the image with bounding boxes to file
-    cv2.imwrite(image_path.split('.')[0] + '_detected.jpg', (image).astype('uint8'))
+    cv2.imwrite(image_path.split('.')[0] + '_detected.jpg', image.astype('uint8'))
 
     print("Completed")
+
+
+if __name__ == '__main__':
+    _main()

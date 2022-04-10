@@ -71,7 +71,7 @@
 * https://cnvrg.io/keras-custom-loss-functions/
 * https://www.kaggle.com/c/pku-autonomous-driving/discussion/113928
 
-### Data Format
+### Dataset / Format
 * https://towardsdatascience.com/coco-data-format-for-object-detection-a4c5eaf518c5
 * https://cocodataset.org/#home
 * http://host.robots.ox.ac.uk/pascal/VOC/index.html

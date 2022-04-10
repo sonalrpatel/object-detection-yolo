@@ -4,8 +4,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Lambda
 from model.model_functional import YOLOv3
-# from dataloader.dataloader import *
-from dataloader.dataloader2 import *
+from dataloader.dataloader import *
 from loss.loss import YoloLoss
 from loss.yololoss2 import yolo_loss
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
@@ -115,7 +114,7 @@ def _main():
     freeze_lr = 1e-3
 
     # =======================================================
-    #   Thawing phase training parameters
+    #   Unfreeze phase training parameters
     #   At this time, the backbone of the model is not frozen, and the feature extraction network will change
     #   The occupied video memory is large, and all the parameters of the network will be changed
     # =======================================================
@@ -160,7 +159,7 @@ def _main():
     # =======================================================
     #   Construct model with loss layer
     # =======================================================
-    y_true = [Input(shape=(image_shape[0] // {0: 32, 1: 16, 2: 8}[l], image_shape[1] // {0: 32, 1: 16, 2: 8}[l], \
+    y_true = [Input(shape=(image_shape[0] // {0: 32, 1: 16, 2: 8}[l], image_shape[1] // {0: 32, 1: 16, 2: 8}[l],
                            len(anchors_mask[l]), num_classes + 5)) for l in range(len(anchors_mask))]
 
     # yolo_loss = YoloLoss(image_shape, anchors, anchors_mask, num_classes).loss([*model_body.output, *y_true])
@@ -169,7 +168,7 @@ def _main():
     model_loss = Lambda(yolo_loss,
                         output_shape=(1,),
                         name='yolo_loss',
-                        arguments={'input_shape': image_shape[0:2], 'anchors': anchors, 'anchors_mask': anchors_mask, \
+                        arguments={'input_shape': image_shape[0:2], 'anchors': anchors, 'anchors_mask': anchors_mask,
                                    'num_classes': num_classes}
                         )([*model_body.output, *y_true])
 

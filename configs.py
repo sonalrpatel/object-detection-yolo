@@ -28,10 +28,10 @@ IMAGE_SIZE = (416, 416)
 
 # Dataset
 # DATA_DIR = "D:/01_PythonAIML/00_Datasets/PASCAL_VOC/"
-DIR_DATA = "D:/01_PythonAIML/06_myProjects/object-detection-yolo3/data/"
+DIR_DATA = "data/"
 DIR_IMAGE = DIR_DATA + "images"
 DIR_LABEL = DIR_DATA + "labels"
-PATH_CLASSES = DIR_DATA + "pascal_classes.txt"
+PATH_CLASSES = DIR_DATA + "coco_classes.txt"
 PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
 PATH_MODEL = DIR_DATA + 'yolo_weights.h5'
 

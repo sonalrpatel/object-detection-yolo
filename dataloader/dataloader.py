@@ -1,22 +1,18 @@
-# ================================================================================
-#   File name   : dataloader.py
-#   Author      : sonalrpatel
-#   Created date: 27-12-2021
-#   GitHub      : https://github.com/sonalrpatel/object-detection-yolo
-#   Description : functions used to prepare the dataset for custom training
-# ================================================================================
-# TODO: complete the dataloader file
+import math
+from random import shuffle
 
-import os
-from abc import ABC
-
+import cv2
 import numpy as np
-import pandas as pd
-import tensorflow as tf
-from tensorflow import keras
 from PIL import Image
-from utils.utils import *
+from tensorflow import keras
 from configs import *
+from utils.utils import *
+
+
+def read_lines(annotation_path):
+    with open(annotation_path) as f:
+        annot_lines = f.readlines()
+    return annot_lines
 
 
 class YoloDataset(object):
@@ -33,22 +29,11 @@ class YoloDataset(object):
         :return:
             list of pairs of image path and corresponding bounding boxes
             example:
-            [['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
-                                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
-             ['D:/01_PythonAIML/00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
+            [['.../00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
+                                                               [0.529, 0.856, 0.125, 0.435, 4.0]]]
+             ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
         """""
-        # img_bboxes_pairs = []
-        # data_df = pd.read_csv(self.data_dir + self.mode + ".csv", header=None)
-        # data_df.columns = ['Image', 'label']
-        #
-        # for n in range(len(data_df)):
-        #     img_path = os.path.join(self.image_dir, data_df['Image'][n])
-        #     lbl_path = os.path.join(self.label_dir, data_df['label'][n])
-        #     bboxes = np.roll(np.loadtxt(fname=lbl_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
-        #     img_bboxes_pairs.append([img_path, bboxes])
-
-        with open(self.annotation_path) as f:
-            lines = f.readlines()
+        lines = read_lines(self.annotation_path)
 
         img_bboxes_pairs = [[line.split()[0], np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
                             for line in lines]
@@ -57,45 +42,22 @@ class YoloDataset(object):
 
 
 class YoloDataGenerator(keras.utils.Sequence):
-    # Data generation
     def __init__(self, mode):
-        super(YoloDataGenerator, self).__init__()
-        self.data_dir = DIR_DATA
-        self.image_dir = DIR_IMAGE
-        self.label_dir = DIR_LABEL
-        self.image_size = IMAGE_SIZE
-        self.batch_size = TRAIN_BATCH_SIZE
-
-        if mode == 'train':
-            self.data_aug = TRAIN_DATA_AUG
-            self.img_bboxes_pairs = YoloDataset(TRAIN_ANNOT_PATH).img_bboxes_pairs
-        elif mode == 'val':
-            self.data_aug = VAL_DATA_AUG
-            self.img_bboxes_pairs = YoloDataset(VAL_ANNOT_PATH).img_bboxes_pairs
-        else:
-            assert mode == 'test', "No valid mode is provided"
-            self.data_aug = TEST_DATA_AUG
-            self.img_bboxes_pairs = YoloDataset(TEST_ANNOT_PATH).img_bboxes_pairs
-
-        self.num_samples = self.img_bboxes_pairs.__len__()
-        self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
-        self.all_indexes = np.arange(self.num_samples)
-
-        self.classes, _ = get_classes(PATH_CLASSES)
-        self.anchors, _ = get_anchors(PATH_ANCHORS)    # YOLO_ANCHORS
-        self.num_classes = self.classes.__len__()
-        self.num_scales = YOLO_NUM_SCALES
-        self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
-        self.max_bbox_per_scale = YOLO_MAX_BBOX_PER_SCALE
-
-        self.batch_count = 0
-        self.shuffle = True
+        self.img_bboxes_pairs = YoloDataset({'train': TRAIN_ANNOT_PATH, 'val': VAL_ANNOT_PATH}[mode]).img_bboxes_pairs
+        self.data_aug = {'train': TRAIN_DATA_AUG, 'val': VAL_DATA_AUG}[mode]
+        self.batch_size = {'train': TRAIN_BATCH_SIZE, 'val': VAL_BATCH_SIZE}[mode]
+        self.input_shape = IMAGE_SIZE
+        self.anchors_mask = YOLO_ANCHORS_MASK
+        self.num_scales = len(self.anchors_mask)
+        self.num_samples = len(self.img_bboxes_pairs)
+        self.classes, self.num_classes = get_classes(PATH_CLASSES)
+        self.anchors, self.num_anchors = get_anchors(PATH_ANCHORS)
 
     def __len__(self):
         """
         Denotes the number of batches per epoch
         """""
-        return self.num_batches
+        return math.ceil(self.num_samples / float(self.batch_size))
 
     def __getitem__(self, index):
         """
@@ -103,21 +65,20 @@ class YoloDataGenerator(keras.utils.Sequence):
         is called, the generator executes the __getitem__ method to generate it.
         """""
         # Generate indexes for a batch
-        batch_indexes = list(self.all_indexes[index * self.batch_size: (index + 1) * self.batch_size])
+        batch_indexes = range(index * self.batch_size, (index + 1) * self.batch_size)
 
         # Generate data
-        X, y = self.__data_generation(batch_indexes)
+        image_data, y_true = self.__data_generation(batch_indexes)
 
-        return X, y
+        return [image_data, *y_true], np.zeros(self.batch_size)
 
-    def on_epoch_end(self):
+    def on_epoch_begin(self):
         """
-        Shuffle indexes after each epoch
-        Set augmentation mode as per global AUGMENTATION_MODE
+        Shuffle indexes at start of each epoch
         """""
         # Shuffle the dataset
         if self.shuffle:
-            np.random.shuffle(self.indexes)
+            np.random.shuffle(self.img_bboxes_pairs)
 
     def process_data(self, img_bboxes_pair, data_aug=False, max_boxes=20, proc_img=True):
         """
@@ -125,7 +86,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         """""
         image = Image.open(img_bboxes_pair[0])
         iw, ih = image.size
-        h, w = self.image_size
+        h, w = self.input_shape
         box = img_bboxes_pair[1]
 
         # resize image
@@ -168,7 +129,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         """""
         assert (true_boxes[..., 4] < self.num_classes).all(), 'class id must be less than num_classes'
         anchor_mask = YOLO_ANCHORS_MASK
-        input_shape = np.array(self.image_size, dtype='int32')
+        input_shape = np.array(self.input_shape, dtype='int32')
 
         # (x_min, y_min, x_max, y_max) is converted to (x_center, y_center, width, height) relative to input shape
         boxes_xy = (true_boxes[..., 0:2] + true_boxes[..., 2:4]) // 2
@@ -263,5 +224,6 @@ class YoloDataGenerator(keras.utils.Sequence):
 if __name__ == "__main__":
 
     ydg = YoloDataGenerator('train')
-    length = ydg.__len__()
-    X, y = ydg.__getitem__(0)
+    num_batches = ydg.__len__()
+    X0, y0 = ydg.__getitem__(0)
+    X1, y1 = ydg.__getitem__(1)
