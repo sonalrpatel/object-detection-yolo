@@ -4,7 +4,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Lambda
 from model.model_functional import YOLOv3
-from dataloader.dataloader import *
+from dataloader.dataloader import YoloDataGenerator
 from loss.loss import YoloLoss
 from loss.yololoss2 import yolo_loss
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint

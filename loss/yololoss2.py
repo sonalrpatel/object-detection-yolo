@@ -107,9 +107,9 @@ def yolo_loss(args, input_shape, anchors, anchors_mask, num_classes, ignore_thre
     #   (m,26,26,3,85)
     #   (m,52,52,3,85)
     #   yolo_outputs is a list，contains 3 feature maps，shape are:
-    #   (m,13,13,3,85)
-    #   (m,26,26,3,85)
-    #   (m,52,52,3,85)
+    #   (m,13,13,255)
+    #   (m,26,26,255)
+    #   (m,52,52,255)
     # ---------------------------------------------------------------------------------------------------#
     y_true = args[num_layers:]
     yolo_outputs = args[:num_layers]
@@ -132,8 +132,8 @@ def yolo_loss(args, input_shape, anchors, anchors_mask, num_classes, ignore_thre
     loss = 0
     num_pos = 0
     # ---------------------------------------------------------------------------------------------------#
-    #   y_true is a list，contains 3 feature maps，shape are: (m,13,13,3,85),(m,26,26,3,85),(m,52,52,3,85)
-    #   yolo_outputs is a list，contains 3 feature maps，shape are:(m,13,13,3,85),(m,26,26,3,85),(m,52,52,3,85)
+    #   y_true is a list，contains 3 feature maps，shape are: (m,13,13,3,85), (m,26,26,3,85), (m,52,52,3,85)
+    #   yolo_outputs is a list，contains 3 feature maps，shape are:(m,13,13,255), (m,26,26,255), (m,52,52,255)
     # ---------------------------------------------------------------------------------------------------#
     for l in range(num_layers):
         # -----------------------------------------------------------#
