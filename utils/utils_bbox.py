@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Input
 
 
 # ==============================================================
@@ -107,7 +106,7 @@ def get_pred_boxes(final_layer_feats, anchors, num_classes, input_shape, calc_lo
 
 
 # ==============================================================
-#   decode model outputs and return
+#   Decode model outputs, Correct sizes, Non-max suppression and Return
 #   1 - box coordinates (x1, y1, x2, y2)
 #   2 - confidence score
 #   3 - classes score
@@ -126,14 +125,14 @@ def DecodeBox(outputs,  # outputs from YoloV3
               confidence=0.5,
               nms_iou=0.3,
               letterbox_image=True):
-    # reshape
-    image_shape = K.reshape(outputs[-1], [-1])
-
+    # ==============================================================
+    #   Decode the output of the model/network
+    # ==============================================================
     box_xy = []
     box_wh = []
     box_confidence = []
     box_class_probs = []
-    # loop number of pre-defined anchors (by default is 3)
+    # loop for number of layers/scales/shapes (3 in yolov3) in final layer features
     for i in range(len(anchor_mask)):
         sub_box_xy, sub_box_wh, sub_box_confidence, sub_box_class_probs = \
             get_pred_boxes(outputs[i], anchors[anchor_mask[i]], num_classes, input_shape)
@@ -155,33 +154,34 @@ def DecodeBox(outputs,  # outputs from YoloV3
     #   If model skip letterbox_image pre-process method, here still need to scale up to align with
     #       original image due to normalization.
     # ==============================================================
-    boxes = yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image)
+    input_image_shape = K.reshape(outputs[-1], [-1])
+    boxes = yolo_correct_boxes(box_xy, box_wh, input_shape, input_image_shape, letterbox_image)
 
+    # ==============================================================
+    #   Consider boxes having score lesser than score threshold
+    #   Perform non-max suppression
+    # ==============================================================
     box_scores = box_confidence * box_class_probs
-
-    # -----------------------------------------------------------#
-    #   is box score greater than score threshold
-    # -----------------------------------------------------------#
     mask = (box_scores >= confidence)
     max_boxes_tensor = K.constant(max_boxes, dtype='int32')
     boxes_out = []
     scores_out = []
     classes_out = []
     for c in range(num_classes):
-        # -----------------------------------------------------------#
+        # ==============================================================
         #   retrieve all the boxes and box scores >= score threshold
-        # -----------------------------------------------------------#
+        # ==============================================================
         class_boxes = tf.boolean_mask(boxes, mask[:, c])
         class_box_scores = tf.boolean_mask(box_scores[:, c], mask[:, c])
 
-        # -----------------------------------------------------------#
+        # ==============================================================
         #   retrieve NMS index via IOU threshold
-        # -----------------------------------------------------------#
+        # ==============================================================
         nms_index = tf.image.non_max_suppression(class_boxes, class_box_scores, max_boxes_tensor, iou_threshold=nms_iou)
 
-        # -----------------------------------------------------------#
+        # ==============================================================
         #   retrieve boxes, boxes scores and classes via NMS index
-        # -----------------------------------------------------------#
+        # ==============================================================
         class_boxes = K.gather(class_boxes, nms_index)
         class_box_scores = K.gather(class_box_scores, nms_index)
         classes = K.ones_like(class_box_scores, 'int32') * c

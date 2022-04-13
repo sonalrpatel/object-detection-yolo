@@ -3,13 +3,13 @@
 #       directory traversal detection.
 #   It is integrated into a py file, and the mode is modified by specifying the mode.
 # =========================================================================
-import time
-
+import os
 import cv2
 import time
 import colorsys
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.models import Model
@@ -19,8 +19,11 @@ from utils.utils_bbox import *
 from model.model_functional import YOLOv3
 
 
-class YoloResult(object):
-    _defaults = {
+class YoloDecode(object):
+    # =====================================================================
+    #   Initialize yolo result
+    # =====================================================================
+    def __init__(self, **kwargs):
         # =====================================================================
         #   To use your own trained model for prediction, you must modify model_path and classes_path!
         #   model_path points to the weights file under the logs folder,
@@ -33,49 +36,40 @@ class YoloResult(object):
         #   If the shape does not match, pay attention to the modification of the model_path
         #       and classes_path parameters during training
         # =====================================================================
-        "weights_path": 'data/yolov3.weights',
-        "model_path": 'data/yolov3.h5',
-        "classes_path": 'data/coco_classes.txt',
+        self.weights_path = 'data/yolov3.weights'
+        self.model_path = 'data/yolov3.h5'
+        self.classes_path = 'data/coco_classes.txt'
 
         # =====================================================================
         #   anchors_path represents the txt file corresponding to the a priori box, which is generally not modified.
         #   anchors_mask is used to help the code find the corresponding a priori box and is generally not modified.
         # =====================================================================
-        "anchors_path": 'data/yolo_anchors.txt',
-        "anchors_mask": [[6, 7, 8], [3, 4, 5], [0, 1, 2]],
+        self.anchors_path = 'data/yolo_anchors.txt'
+        self.anchors_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
         # =====================================================================
         #   The size of the input image, which must be a multiple of 32.
         # =====================================================================
-        "input_shape": [416, 416],
+        self.input_shape = [416, 416]
+        self.input_image_shape = Input([2, ], batch_size=1)
 
         # =====================================================================
         #   Only prediction boxes with scores greater than confidence will be kept
         # =====================================================================
-        "confidence": 0.5,
+        self.confidence = 0.5
 
         # =====================================================================
         #   nms_iou size used for non-maximum suppression
         # =====================================================================
-        "nms_iou": 0.3,
-        "max_boxes": 100,
+        self.nms_iou = 0.3
+        self.max_boxes = 100
 
         # =====================================================================
         #   This variable is used to control whether to use letterbox_image
         #       to resize the input image without distortion,
         #   After many tests, it is found that the direct resize effect of closing letterbox_image is better
         # =====================================================================
-        "letterbox_image": True,
-    }
-
-    # =====================================================================
-    #   Initialize yolo
-    # =====================================================================
-    def __init__(self, **kwargs):
-        self.input_image_shape = Input([2, ], batch_size=1)
-        self.__dict__.update(self._defaults)
-        for name, value in kwargs.items():
-            setattr(self, name, value)
+        self.letterbox_image = True
 
         # =====================================================================
         #   Get the number of kinds and a priori boxes
@@ -96,16 +90,22 @@ class YoloResult(object):
     #   Load model
     # =====================================================================
     def generate(self):
+        # =====================================================================
+        #   Create a yolo model
+        # =====================================================================
+        self.model_body = YOLOv3([None, None, 3], self.num_classes)
+
+        # =====================================================================
+        #   Load model weights
+        # =====================================================================
         model_path = os.path.join(os.path.dirname(__file__), self.model_path)
         weights_path = os.path.join(os.path.dirname(__file__), self.weights_path)
-
-        self.yolo_model = YOLOv3([None, None, 3], self.num_classes)
 
         try:
             if os.path.isfile(model_path):
                 assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
 
-                self.yolo_model.load_weights(model_path)
+                self.model_body.load_weights(model_path)
                 print('{} model, anchors, and classes loaded.'.format(model_path))
             else:
                 raise Exception("Keras model does not present.")
@@ -114,8 +114,8 @@ class YoloResult(object):
                 assert weights_path.endswith('.weights'), 'Yolo weights must be a .weights file.'
 
                 weight_reader = WeightReader(weights_path)
-                weight_reader.load_weights(self.yolo_model)
-                self.yolo_model.save(weights_path.split('.')[0] + '.h5')
+                weight_reader.load_weights(self.model_body)
+                self.model_body.save(weights_path.split('.')[0] + '.h5')
                 print('{} model, anchors, and classes loaded.'.format(weights_path))
             else:
                 raise Exception("Yolo weights too does not present.")
@@ -124,8 +124,6 @@ class YoloResult(object):
         #   In the DecodeBox function, we will post-process the prediction results
         #   The content of post-processing includes decoding, non-maximum suppression, threshold filtering, etc.
         # =====================================================================
-        inputs = [*self.yolo_model.output, self.input_image_shape]
-
         outputs = Lambda(
             DecodeBox,
             output_shape=(1,),
@@ -140,9 +138,23 @@ class YoloResult(object):
                 'max_boxes': self.max_boxes,
                 'letterbox_image': self.letterbox_image
             }
-        )(inputs)
+        )([*self.model_body.output, self.input_image_shape])
 
-        self.yolo_model = Model([self.yolo_model.input, self.input_image_shape], outputs)
+        # =====================================================================
+        #   Construct model with DecodeBox layer
+        # =====================================================================
+        #      image                              input_image_shape
+        #    (x,y :RGB)   -------------------->     (2, :Tensor)
+        #        |                                       |
+        #        V                                       |
+        #    image_data                                  |
+        #   (1,416,416,3)                                V
+        #        |          yolo pred (raw)           DecodeBox
+        #        V           (1,13,13,255)     (decoding raw yolo prediction,
+        #    model_body  --> (1,26,26,255) -->   correction of bboxes size,   --> draw image
+        #                    (1,52,52,255)        non maximal suppression)        with bboxes
+        # =====================================================================
+        self.model_decode = Model([self.model_body.input, self.input_image_shape], outputs)
 
     # =====================================================================
     #   Preprocess image
@@ -167,23 +179,9 @@ class YoloResult(object):
         return image_data
 
     # =====================================================================
-    #   Detect pictures
+    #   Draw boxes on input image
     # =====================================================================
-    def detect_image(self, image):
-        # =====================================================================
-        #   Preprocess image and Add the batch_size dimension
-        # =====================================================================
-        image_data = self.preprocess_image(image)
-        image_data = np.expand_dims(image_data, 0)
-
-        # =====================================================================
-        #   Feed the image into the network to make predictions!
-        # =====================================================================
-        input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
-
-        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
-
+    def draw_boxes(self, image, out_boxes, out_scores, out_classes):
         # =====================================================================
         #   Set font and border thickness
         # =====================================================================
@@ -221,9 +219,35 @@ class YoloResult(object):
             draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
             draw.text(text_origin, str(label, 'UTF-8'), fill=(0, 0, 0), font=font)
             del draw
-
         return image
 
+    # =====================================================================
+    #   Detect pictures
+    # =====================================================================
+    def detect_image(self, image):
+        # =====================================================================
+        #   Preprocess image and Add the batch_size dimension
+        # =====================================================================
+        image_data = self.preprocess_image(image)
+
+        image_data = np.expand_dims(image_data, 0)
+        input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
+
+        # =====================================================================
+        #   Feed the image into the network to make predictions!
+        # =====================================================================
+        out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
+        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+
+        # =====================================================================
+        #   Draw bounding boxes on the image using labels
+        # =====================================================================
+        self.draw_boxes(image, out_boxes, out_scores, out_classes)
+        return image
+
+    # =====================================================================
+    #   Calculate number of image files processed per second
+    # =====================================================================
     def get_FPS(self, image, test_interval):
         # =====================================================================
         #   Preprocess image and Add the batch_size dimension
@@ -235,11 +259,11 @@ class YoloResult(object):
         #   Feed the image into the network to make predictions!
         # =====================================================================
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
+        out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
 
         t1 = time.time()
         for _ in range(test_interval):
-            out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
+            out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
 
         t2 = time.time()
         tact_time = (t2 - t1) / test_interval
@@ -259,7 +283,7 @@ class YoloResult(object):
         #   Feed the image into the network to make predictions!
         # =====================================================================
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
-        out_boxes, out_scores, out_classes = self.yolo_model([image_data, input_image_shape])
+        out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
 
         f = open(os.path.join(map_out_path, "detection-results/" + image_id + ".txt"), "w")
         for i, c in enumerate(out_classes):
@@ -279,8 +303,11 @@ class YoloResult(object):
         return
 
 
-if __name__ == "__main__":
-    yolo = YoloResult()
+def _main():
+    # =====================================================================
+    #   Create an object of yolo result class
+    # =====================================================================
+    yolo = YoloDecode()
 
     # =====================================================================
     #   mode is used to specify the mode of the test:
@@ -324,7 +351,7 @@ if __name__ == "__main__":
     dir_save_path = "img_out/"
 
     # =====================================================================
-    #   If you want to save the detected image, use r_image.save("img.jpg") to save it, and modify it directly in
+    #   If you want to save the detected image, use image_out.save("img.jpg") to save it, and modify it directly in
     #       predict.py.
     #   If you want to get the coordinates of the prediction frame, you can enter the yolo.detect_image function and
     #       read the four values of top, left, bottom, and right in the drawing part.
@@ -337,10 +364,11 @@ if __name__ == "__main__":
     #       and then record the number. Use draw.text to write.
     # =====================================================================
     if mode == "predict":
+        import os
         image_path = "data/fruits.webp"
         image = Image.open(os.path.join(os.path.dirname(__file__), image_path))
-        r_image = yolo.detect_image(image)
-        r_image.show()
+        image_out = yolo.detect_image(image)
+        image_out.show()
 
     elif mode == "video":
         capture = cv2.VideoCapture(video_origin_path)
@@ -397,18 +425,20 @@ if __name__ == "__main__":
 
     elif mode == "dir_predict":
         import os
-        from tqdm import tqdm
-
         img_names = os.listdir(dir_origin_path)
         for img_name in tqdm(img_names):
             if img_name.lower().endswith(
                     ('.bmp', '.dib', '.png', '.jpg', '.jpeg', '.pbm', '.pgm', '.ppm', '.tif', '.tiff')):
                 image_path = os.path.join(dir_origin_path, img_name)
                 image = Image.open(image_path)
-                r_image = yolo.detect_image(image)
+                image_out = yolo.detect_image(image)
                 if not os.path.exists(dir_save_path):
                     os.makedirs(dir_save_path)
-                r_image.save(os.path.join(dir_save_path, img_name))
+                image_out.save(os.path.join(dir_save_path, img_name))
 
     else:
         raise AssertionError("Please specify the correct mode: 'predict', 'video', 'fps' or 'dir_predict'.")
+
+
+if __name__ == '__main__':
+    _main()

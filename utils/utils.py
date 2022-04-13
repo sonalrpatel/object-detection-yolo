@@ -10,6 +10,9 @@ def get_classes(class_file_name):
     :param class_file_name: 
     :return: class names 
     """""
+    if not os.path.exists(class_file_name):
+        class_file_name = os.path.join(os.path.dirname(__file__), '..', class_file_name)
+
     class_names = {}
     with open(class_file_name, 'r') as data:
         for ID, name in enumerate(data):
@@ -21,6 +24,9 @@ def get_anchors(anchors_path):
     """
     loads the anchors from a file
     """""
+    if not os.path.exists(anchors_path):
+        anchors_path = os.path.join(os.path.dirname(__file__), '..', anchors_path)
+
     with open(anchors_path) as f:
         anchors = f.readline()
     anchors = [float(x) for x in anchors.split(',')]

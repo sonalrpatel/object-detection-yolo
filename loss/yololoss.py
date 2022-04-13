@@ -11,6 +11,9 @@ from utils.utils_bbox import *
 from utils.utils_metric import *
 
 
+# ---------------------------------------------------#
+#   calculate iou between predicted boxes and true boxes
+# ---------------------------------------------------#
 def box_iou(pred_boxes, valid_true_boxes):
     """
     param:
@@ -30,6 +33,9 @@ def box_iou(pred_boxes, valid_true_boxes):
     true_box_xy = valid_true_boxes[:, 0:2]
     true_box_wh = valid_true_boxes[:, 2:4]
 
+    # ---------------------------------------------------#
+    #   calculate IOU
+    # ---------------------------------------------------#
     # [13, 13, 3, 1, 2] & [V, 2] ==> [13, 13, 3, V, 2]
     intersect_mins = tf.maximum(pred_box_xy - pred_box_wh / 2., true_box_xy - true_box_wh / 2.)
     intersect_maxs = tf.minimum(pred_box_xy + pred_box_wh / 2., true_box_xy + true_box_wh / 2.)
@@ -50,6 +56,9 @@ def box_iou(pred_boxes, valid_true_boxes):
     return iou
 
 
+# ---------------------------------------------------#
+#   loss function
+# ---------------------------------------------------#
 def yolo_loss(args, input_shape, anchors, anchors_mask, num_classes):
     num_layers = len(anchors_mask)
 

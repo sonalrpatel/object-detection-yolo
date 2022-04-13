@@ -1,9 +1,5 @@
+import os
 import math
-from random import shuffle
-
-import cv2
-import numpy as np
-from PIL import Image
 from tensorflow import keras
 from configs import *
 from utils.utils import *
@@ -19,6 +15,8 @@ class YoloDataset(object):
     # Dataset preprocess implementation
     def __init__(self, annot_path):
         super(YoloDataset, self).__init__()
+        if not os.path.exists(annot_path):
+            annot_path = os.path.join(os.path.dirname(__file__), '..', annot_path)
         self.annotation_path = annot_path
         self.img_bboxes_pairs = self.load_img_bboxes_pairs()
 
@@ -227,3 +225,5 @@ if __name__ == "__main__":
     num_batches = ydg.__len__()
     X0, y0 = ydg.__getitem__(0)
     X1, y1 = ydg.__getitem__(1)
+    X2, y2 = ydg.__getitem__(2)
+    X3, y3 = ydg.__getitem__(3)
