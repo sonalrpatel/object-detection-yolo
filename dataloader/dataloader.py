@@ -41,13 +41,13 @@ class YoloDataset(object):
 
 class YoloDataGenerator(keras.utils.Sequence):
     def __init__(self, mode):
-        self.img_bboxes_pairs = YoloDataset({'train': TRAIN_ANNOT_PATH, 'val': VAL_ANNOT_PATH}[mode]).img_bboxes_pairs
+        self.annotation_lines = read_lines({'train': TRAIN_ANNOT_PATH, 'val': VAL_ANNOT_PATH}[mode])
         self.data_aug = {'train': TRAIN_DATA_AUG, 'val': VAL_DATA_AUG}[mode]
         self.batch_size = {'train': TRAIN_BATCH_SIZE, 'val': VAL_BATCH_SIZE}[mode]
         self.input_shape = IMAGE_SIZE
         self.anchors_mask = YOLO_ANCHORS_MASK
         self.num_scales = len(self.anchors_mask)
-        self.num_samples = len(self.img_bboxes_pairs)
+        self.num_samples = len(self.annotation_lines)
         self.classes, self.num_classes = get_classes(PATH_CLASSES)
         self.anchors, self.num_anchors = get_anchors(PATH_ANCHORS)
 
@@ -70,6 +70,27 @@ class YoloDataGenerator(keras.utils.Sequence):
 
         return [image_data, *y_true], np.zeros(self.batch_size)
 
+    def __data_generation(self, batch_indexes):
+        """
+        Generates data containing batch_size samples
+        """""
+        image_data = []
+        box_data = []
+        for i in batch_indexes:
+            img_bboxes_pair = [self.annotation_lines[i].split()[0],
+                               np.array([list(map(int, box.split(',')))
+                                         for box in self.annotation_lines[i].split()[1:]])]
+            # image, box = self.get_random_data(img_bboxes_pair, self.input_shape)
+            image, box = self.process_data(img_bboxes_pair)
+            image_data.append(preprocess_input(np.array(image)))
+            box_data.append(box)
+
+        image_data = np.array(image_data)
+        box_data = np.array(box_data)
+        y_true = self.preprocess_true_boxes(box_data)
+
+        return image_data, y_true
+
     def on_epoch_begin(self):
         """
         Shuffle indexes at start of each epoch
@@ -78,7 +99,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         if self.shuffle:
             np.random.shuffle(self.img_bboxes_pairs)
 
-    def process_data(self, img_bboxes_pair, data_aug=False, max_boxes=20, proc_img=True):
+    def process_data(self, img_bboxes_pair, data_aug=False, max_boxes=20):
         """
         Random preprocessing for real-time data augmentation
         """""
@@ -98,11 +119,10 @@ class YoloDataGenerator(keras.utils.Sequence):
             # todo augmentation
             image = image
 
+        image = image.resize((nw, nh), Image.BICUBIC)
         image_data = Image.new('RGB', (w, h), (128, 128, 128))
-        if proc_img:
-            image = image.resize((nw, nh), Image.BICUBIC)
-            image_data.paste(image, (dx, dy))
-            image_data = np.array(image_data) / 255.
+        image_data.paste(image, (dx, dy))
+        image_data = np.array(image_data, np.float32)
 
         # correct boxes
         box_data = np.zeros((max_boxes, 5))
@@ -112,6 +132,13 @@ class YoloDataGenerator(keras.utils.Sequence):
                 box = box[:max_boxes]
             box[:, [0, 2]] = box[:, [0, 2]] * scale + dx
             box[:, [1, 3]] = box[:, [1, 3]] * scale + dy
+            # Check whether box size falls inside image or not
+            box[:, [0, 1]][box[:, [0, 1]] < 0] = 0
+            box[:, 2][box[:, 2] > w] = w
+            box[:, 3][box[:, 3] > h] = h
+            box_w = box[:, 2] - box[:, 0]
+            box_h = box[:, 3] - box[:, 1]
+            box = box[np.logical_and(box_w > 1, box_h > 1)]
             box_data[:box.shape[0]] = box
 
         return image_data, box_data
@@ -163,6 +190,7 @@ class YoloDataGenerator(keras.utils.Sequence):
             box_wh = np.expand_dims(box_wh, -2)
             box_maxes = box_wh / 2.
             box_mins = -box_maxes
+
             # find box area
             box_area = box_wh[..., 0] * box_wh[..., 1]
 
@@ -189,7 +217,7 @@ class YoloDataGenerator(keras.utils.Sequence):
                 # dimensions of a single box
                 x, y, width, height, class_label = true_boxes[b_idx, box_no, 0:5]
 
-                # index of the grid cell having the center of the bbox
+                # index of the grid cell having the center of the bbox+
                 i = np.floor(y * scale[0]).astype('int32')
                 j = np.floor(x * scale[1]).astype('int32')
 
@@ -200,30 +228,9 @@ class YoloDataGenerator(keras.utils.Sequence):
 
         return y_true
 
-    def __data_generation(self, batch_indexes):
-        """
-        Generates data containing batch_size samples
-        """""
-        image_data = []
-        box_data = []
-        for i in batch_indexes:
-            image, box = self.process_data(self.img_bboxes_pairs[i], self.data_aug)
-            box = np.floor(box / 2.5)
-            image_data.append(image)
-            box_data.append(box)
-
-        image_data = np.array(image_data)
-        box_data = np.array(box_data)
-        y_true = self.preprocess_true_boxes(box_data)
-
-        return image_data, y_true
-
 
 if __name__ == "__main__":
 
     ydg = YoloDataGenerator('train')
     num_batches = ydg.__len__()
     X0, y0 = ydg.__getitem__(0)
-    X1, y1 = ydg.__getitem__(1)
-    X2, y2 = ydg.__getitem__(2)
-    X3, y3 = ydg.__getitem__(3)
