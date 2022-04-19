@@ -2,6 +2,14 @@ import os
 import struct
 import numpy as np
 from PIL import Image
+from functools import reduce
+
+
+def compose(*funcs):
+    if funcs:
+        return reduce(lambda f, g: lambda *a, **kw: g(f(*a, **kw)), funcs)
+    else:
+        raise ValueError('Composition of empty sequence not supported.')
 
 
 def get_classes(class_file_name):
@@ -65,6 +73,19 @@ def resize_image(image, size, letterbox_image):
 def normalize_input(image):
     image /= 255.0
     return image
+
+
+def preprocess_input(image):
+    image /= 255.0
+    return image
+
+
+def cvtColor(image):
+    if len(np.shape(image)) == 3 and np.shape(image)[2] == 3:
+        return image
+    else:
+        image = image.convert('RGB')
+        return image
 
 
 # ===================================================================

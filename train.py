@@ -1,12 +1,12 @@
-from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
-from tensorflow.keras.optimizers import Adam
-
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Lambda
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
+
+from model.yolo import yolo_body
 from model.model_functional import YOLOv3
+from loss.loss_functional import yolo_loss
 from dataloader.dataloader import YoloDataGenerator
-from loss.loss import YoloLoss
-from loss.yololoss2 import yolo_loss
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
 from configs import *
@@ -110,7 +110,7 @@ def _main():
     # =======================================================
     init_epoch = 0
     freeze_epoch = 50
-    freeze_batch_size = 8
+    freeze_batch_size = 16
     freeze_lr = 1e-3
 
     # =======================================================
@@ -119,7 +119,7 @@ def _main():
     #   The occupied video memory is large, and all the parameters of the network will be changed
     # =======================================================
     unfreeze_epoch = 100
-    unfreeze_batch_size = 4
+    unfreeze_batch_size = 8
     unfreeze_lr = 1e-4
 
     # =======================================================
@@ -146,7 +146,9 @@ def _main():
     # =======================================================
     #   Create a yolo model
     # =======================================================
-    model_body = YOLOv3((image_shape[0], image_shape[1], 3), num_classes)
+    # model_body = YOLOv3((image_shape[0], image_shape[1], 3), num_classes)
+    # model_body = YOLOv3((None, None, 3), num_classes)
+    model_body = yolo_body((None, None, 3), anchors_mask, num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     # =======================================================
@@ -218,8 +220,6 @@ def _main():
 
         train_dataloader = YoloDataGenerator('train')
         val_dataloader = YoloDataGenerator('val')
-
-        # print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, batch_size))
 
         model.summary()
         model.compile(optimizer=Adam(learning_rate=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
