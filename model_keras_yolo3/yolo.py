@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Input, BatchNormalization, LeakyReLU, ZeroPadding2D, UpSampling2D
-from tensorflow.keras.layers import Add, Concatenate
+from tensorflow.keras.layers import add, concatenate
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Layer
 
@@ -33,7 +33,7 @@ class YoloLayer(Layer):
     def build(self, input_shape):
         super(YoloLayer, self).build(input_shape)  # Be sure to call this somewhere!
 
-    def call(self, x):
+    def call(self, x, **kwargs):
         input_image, y_pred, y_true, true_boxes = x
 
         # adjust the shape of the y_predict [batch, grid_h, grid_w, 3, 4+1+nb_class]
@@ -226,7 +226,7 @@ def _conv_block(inp, convs, do_skip=True):
         if conv['bnorm']: x = BatchNormalization(epsilon=0.001, name='bnorm_' + str(conv['layer_idx']))(x)
         if conv['leaky']: x = LeakyReLU(alpha=0.1, name='leaky_' + str(conv['layer_idx']))(x)
 
-    return Add([skip_connection, x]) if do_skip else x
+    return add([skip_connection, x]) if do_skip else x
 
 
 def make_yolov3_model(input_shape):
@@ -302,7 +302,7 @@ def make_yolov3_model(input_shape):
     x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 84}],
                     do_skip=False)
     x = UpSampling2D(2)(x)
-    x = Concatenate([x, skip_61])
+    x = concatenate([x, skip_61])
 
     # Layer 87 => 91
     x = _conv_block(x, [{'filter': 256, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 87},
@@ -321,7 +321,7 @@ def make_yolov3_model(input_shape):
     x = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 96}],
                     do_skip=False)
     x = UpSampling2D(2)(x)
-    x = Concatenate([x, skip_36])
+    x = concatenate([x, skip_36])
 
     # Layer 99 => 106
     yolo_106 = _conv_block(x, [{'filter': 128, 'kernel': 1, 'stride': 1, 'bnorm': True, 'leaky': True, 'layer_idx': 99},
