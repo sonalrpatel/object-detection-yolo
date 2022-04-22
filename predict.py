@@ -14,9 +14,11 @@ from PIL import Image, ImageDraw, ImageFont
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.models import Model
 
+from model_keras_yolo3.yolo import make_yolov3_model
+from model_yolo3_tf2.yolo import yolo_body
+from model.model_functional import YOLOv3
 from utils.utils import *
 from utils.utils_bbox import *
-from model.model_functional import YOLOv3
 
 
 class YoloDecode(object):
@@ -37,7 +39,7 @@ class YoloDecode(object):
         #       and classes_path parameters during training
         # =====================================================================
         self.weights_path = 'data/yolov3.weights'
-        self.model_path = 'data/yolov3.h5'
+        self.model_path = 'data/yolo_weights.h5'
         self.classes_path = 'data/coco_classes.txt'
 
         # =====================================================================
@@ -93,7 +95,9 @@ class YoloDecode(object):
         # =====================================================================
         #   Create a yolo model
         # =====================================================================
-        self.model_body = YOLOv3([None, None, 3], self.num_classes)
+        self.model_body = YOLOv3((None, None, 3), self.num_classes)
+        # self.model_body = make_yolov3_model((None, None, 3))
+        # self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
 
         # =====================================================================
         #   Load model weights
@@ -365,7 +369,7 @@ def _main():
     # =====================================================================
     if mode == "predict":
         import os
-        image_path = "data/fruits.webp"
+        image_path = "data/apple.jpg"
         image = Image.open(os.path.join(os.path.dirname(__file__), image_path))
         image_out = yolo.detect_image(image)
         image_out.show()

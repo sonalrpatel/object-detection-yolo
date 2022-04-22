@@ -233,8 +233,9 @@ def _main():
     # anchors = [[116, 90, 156, 198, 373, 326], [30, 61, 62, 45, 59, 119], [10, 13, 16, 30, 33, 23]]
 
     # make the yolov3 model to predict 80 classes on COCO
-    yolov3 = make_yolov3_model((None, None, 3))
-    # yolov3 = YOLOv3((None, None, 3), num_classes)
+    yolov3 = YOLOv3((None, None, 3), num_classes)
+    # yolov3 = make_yolov3_model((None, None, 3))
+    # yolov3 = yolo_body((None, None, 3), anchors_mask, num_classes)
 
     # load the weights trained on COCO into the model
     # option 1
