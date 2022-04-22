@@ -147,16 +147,20 @@ def _main():
     # =======================================================
     #   Create a yolo model
     # =======================================================
-    # model_body = YOLOv3((image_shape[0], image_shape[1], 3), num_classes)
     model_body = YOLOv3((None, None, 3), num_classes)
-    model_body2 = make_yolov3_model((None, None, 3))
-    model_body3 = yolo_body((None, None, 3), anchors_mask, num_classes)
+    # model_body2 = make_yolov3_model((None, None, 3))
+    # model_body3 = yolo_body((None, None, 3), anchors_mask, num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     # =======================================================
     #   Load pretrained weights
     # =======================================================
     if model_path != '':
+        # load the weights trained on COCO into the model
+        # option 1
+        # weight_reader = WeightReader(weights_path)
+        # weight_reader.load_weights(model_body)
+        # option 2
         print('Load weights {}.'.format(model_path))
         model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
 

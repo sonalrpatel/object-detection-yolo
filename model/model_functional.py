@@ -5,6 +5,8 @@ import os
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Add, ZeroPadding2D, UpSampling2D, Concatenate
 from tensorflow.keras.layers import LeakyReLU, BatchNormalization
+from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.regularizers import l2
 from tensorflow.keras import Input, Model
 
 from utils.utils import WeightReader
@@ -25,6 +27,7 @@ def DarknetConv2D_BN_Leaky(inputs, n_filters, kernel_size=(3, 3), down_sample=Fa
     use_bias = False if bn_act else True
 
     x = Conv2D(n_filters, kernel_size=kernel_size, strides=strides, padding=padding, use_bias=use_bias,
+               kernel_initializer = RandomNormal(stddev=0.02), kernel_regularizer = l2(5e-4),
                name='conv_' + str(layer_idx))(inputs)
     if bn_act:
         x = BatchNormalization(name='bnorm_' + str(layer_idx))(x)
