@@ -90,6 +90,9 @@ def cvtColor(image):
 
 # ===================================================================
 #   Load weights to yolov3 model
+#   Reference:
+#   https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/
+#   https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py
 #   Input: yolov3 keras model, yolov3.weights
 #   Output: yolov3_model.h5
 # ===================================================================

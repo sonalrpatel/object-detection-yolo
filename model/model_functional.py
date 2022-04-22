@@ -132,9 +132,9 @@ if __name__ == "__main__":
     weight_reader.load_weights(model)
 
     # save the model to .h5 file
-    model.save('../data/yolov3.h5')
+    model.save('../data/yolo_weights.h5')
 
-    model.load_weights(os.path.join(os.path.dirname(__file__), '../data/yolov3.h5'))
+    model.load_weights(os.path.join(os.path.dirname(__file__), '../data/yolo_weights.h5'))
 
     input_tensor = Input(image_shape)
     output_tensor = model(input_tensor)

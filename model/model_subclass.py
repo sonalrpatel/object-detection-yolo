@@ -8,7 +8,7 @@ from tensorflow.keras.layers import Layer, LeakyReLU, BatchNormalization
 from tensorflow.keras import Input, Model
 from tensorflow.keras.regularizers import l2
 
-from loss.loss import YoloLoss
+from loss.loss_subclass import YoloLoss
 
 
 """
