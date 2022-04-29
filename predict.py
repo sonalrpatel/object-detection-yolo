@@ -109,7 +109,7 @@ class YoloDecode(object):
             if os.path.isfile(model_path):
                 assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
 
-                self.model_body.load_weights(model_path)
+                self.model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
                 print('{} model, anchors, and classes loaded.'.format(model_path))
             else:
                 raise Exception("Keras model does not present.")

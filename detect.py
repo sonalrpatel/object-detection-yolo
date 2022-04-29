@@ -1,5 +1,6 @@
 import os
 import cv2
+import pandas as pd
 from model_keras_yolo3.yolo import make_yolov3_model
 from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
@@ -237,12 +238,15 @@ def _main():
     # yolov3 = make_yolov3_model((None, None, 3))
     # yolov3 = yolo_body((None, None, 3), anchors_mask, num_classes)
 
+    # run model summary
+    yolov3.summary()
+
     # load the weights trained on COCO into the model
     # option 1
     # weight_reader = WeightReader(weights_path)
     # weight_reader.load_weights(yolov3)
     # option 2
-    yolov3.load_weights(model_path)
+    yolov3.load_weights(model_path, by_name=True, skip_mismatch=True)
 
     # preprocess the image
     image = cv2.imread(image_path)
