@@ -31,59 +31,6 @@ def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image
     return boxes
 
 
-# # ---------------------------------------------------#
-# #   Adjust predicted result to align with original image
-# # ---------------------------------------------------#
-# def get_anchors_and_decode(feats, anchors, num_classes, input_shape, calc_loss=False):
-#     num_anchors = len(anchors)
-#     # ------------------------------------------#
-#     #   grid_shape = (width, height) = (13, 13) or (26, 26) or (52, 52)
-#     # ------------------------------------------#
-#     grid_shape = K.shape(feats)[1:3]
-#     # --------------------------------------------------------------------#
-#     #   generate grip with shape => (13, 13, num_anchors, 2) => by default (13, 13, 3, 2)
-#     # --------------------------------------------------------------------#
-#     grid_x = K.tile(K.reshape(K.arange(0, stop=grid_shape[1]), [1, -1, 1, 1]), [grid_shape[0], 1, num_anchors, 1])
-#     grid_y = K.tile(K.reshape(K.arange(0, stop=grid_shape[0]), [-1, 1, 1, 1]), [1, grid_shape[1], num_anchors, 1])
-#     grid = K.cast(K.concatenate([grid_x, grid_y]), K.dtype(feats))
-#     # ---------------------------------------------------------------#
-#     #   adjust pre-defined anchors to shape (13, 13, num_anchors, 2)
-#     # ---------------------------------------------------------------#
-#     anchors_tensor = K.reshape(K.constant(anchors), [1, 1, num_anchors, 2])
-#     anchors_tensor = K.tile(anchors_tensor, [grid_shape[0], grid_shape[1], 1, 1])
-#
-#     # ---------------------------------------------------#
-#     #   reshape prediction results to (batch_size,13,13,3,85)
-#     #   85 = 4 + 1 + 80
-#     #   4 -> x offset, y offset, width and height
-#     #   1 -> confidence score
-#     #   80 -> 80 classes
-#     # ---------------------------------------------------#
-#     feats = K.reshape(feats, [-1, grid_shape[0], grid_shape[1], num_anchors, num_classes + 5])
-#     # ------------------------------------------#
-#     #   calculate bounding box center point bx, by, width(bw), height(bh) and normalized by grid shape (13, 26 or 52)
-#     #   bx = sigmoid(tx) + cx
-#     #   by = sigmoid(tx) + cy
-#     #   bw = pw * exp(tw)
-#     #   bh = ph * exp(th)
-#     # ------------------------------------------#
-#     box_xy = (K.sigmoid(feats[..., :2]) + grid) / K.cast(grid_shape[::-1], K.dtype(feats))
-#     box_wh = K.exp(feats[..., 2:4]) * anchors_tensor / K.cast(input_shape[::-1], K.dtype(feats))
-#     # ------------------------------------------#
-#     #   retrieve confidence score and class probs
-#     # ------------------------------------------#
-#     box_confidence = K.sigmoid(feats[..., 4:5])
-#     box_class_probs = K.sigmoid(feats[..., 5:])
-#
-#     # ---------------------------------------------------------------------#
-#     #   if calc loss return -> grid, feats, box_xy, box_wh
-#     #   if during prediction return -> box_xy, box_wh, box_confidence, box_class_probs
-#     # ---------------------------------------------------------------------#
-#     if calc_loss:
-#         return grid, feats, box_xy, box_wh
-#     return box_xy, box_wh, box_confidence, box_class_probs
-
-
 # ==============================================================
 #   Adjust predicted result to align with original image
 #   Convert final layer features to bounding box parameters

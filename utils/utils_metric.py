@@ -1,40 +1,49 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras import backend as K
 
 
-def box_iou(b1, b2):
-    """
-    returns iou tensor
-    :param
-        b1: tensor, shape=(i1,...,iN, 4), xywh
-        b2: tensor, shape=(j, 4), xywh
-    :return:
-        iou: tensor, shape=(i1,...,iN, j)
+# =========================================================
+#   calculate iou between predicted boxes and true boxes
+# =========================================================
+def box_iou(pred_boxes, valid_true_boxes):
+    """""
+    param:
+        pred_boxes: [13, 13, 3, 4], (center_x, center_y, w, h)
+        valid_true: [V, 4]
     """""
 
-    # Expand dim to apply broadcasting.
-    b1 = K.expand_dims(b1, -2)
-    b1_xy = b1[..., :2]
-    b1_wh = b1[..., 2:4]
-    b1_wh_half = b1_wh / 2.
-    b1_mins = b1_xy - b1_wh_half
-    b1_maxes = b1_xy + b1_wh_half
+    # =========================================================
+    #   calculate top left and bottom right coordinates
+    # =========================================================
+    # [13, 13, 3, 2]
+    pred_box_xy = pred_boxes[..., 0:2]
+    pred_box_wh = pred_boxes[..., 2:4]
 
-    # Expand dim to apply broadcasting.
-    b2 = K.expand_dims(b2, 0)
-    b2_xy = b2[..., :2]
-    b2_wh = b2[..., 2:4]
-    b2_wh_half = b2_wh / 2.
-    b2_mins = b2_xy - b2_wh_half
-    b2_maxes = b2_xy + b2_wh_half
+    # shape: [13, 13, 3, 1, 2]
+    pred_box_xy = tf.expand_dims(pred_box_xy, -2)
+    pred_box_wh = tf.expand_dims(pred_box_wh, -2)
 
-    intersect_mins = K.maximum(b1_mins, b2_mins)
-    intersect_maxes = K.minimum(b1_maxes, b2_maxes)
-    intersect_wh = K.maximum(intersect_maxes - intersect_mins, 0.)
+    # [V, 2]
+    true_box_xy = valid_true_boxes[:, 0:2]
+    true_box_wh = valid_true_boxes[:, 2:4]
+
+    # =========================================================
+    #   calculate IOU
+    # =========================================================
+    # [13, 13, 3, 1, 2] & [V, 2] ==> [13, 13, 3, V, 2]
+    intersect_mins = tf.maximum(pred_box_xy - pred_box_wh / 2., true_box_xy - true_box_wh / 2.)
+    intersect_maxs = tf.minimum(pred_box_xy + pred_box_wh / 2., true_box_xy + true_box_wh / 2.)
+    intersect_wh = tf.maximum(intersect_maxs - intersect_mins, 0.)
+
+    # shape: [13, 13, 3, V]
     intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
-    b1_area = b1_wh[..., 0] * b1_wh[..., 1]
-    b2_area = b2_wh[..., 0] * b2_wh[..., 1]
-    iou = intersect_area / (b1_area + b2_area - intersect_area)
+    # shape: [13, 13, 3, 1]
+    pred_box_area = pred_box_wh[..., 0] * pred_box_wh[..., 1]
+    # shape: [V]
+    true_box_area = true_box_wh[..., 0] * true_box_wh[..., 1]
+    # shape: [1, V]
+    true_box_area = tf.expand_dims(true_box_area, axis=0)
+
+    # [13, 13, 3, V]
+    iou = intersect_area / (pred_box_area + true_box_area - intersect_area + 1e-10)
 
     return iou

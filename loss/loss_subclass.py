@@ -6,9 +6,8 @@ instead of BinaryCrossEntropy.
 """
 
 from tensorflow.keras import Input
-from utils.utils import *
 from utils.utils_bbox import *
-from utils.utils_metric import *
+from utils.utils_metric import box_iou
 
 
 class YoloLoss(object):
