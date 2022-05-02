@@ -281,5 +281,5 @@ def _main(args):
 
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
-    # python detect.py [-i] <image_path>
+    # python predict.py [-i] <image_path>
     _main(parser.parse_args())
