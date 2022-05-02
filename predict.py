@@ -27,7 +27,7 @@ class YoloDecode(object):
     # =====================================================================
     def __init__(self, **kwargs):
         # =====================================================================
-        #   To use your own trained model for prediction, you must modify model_path and classes_path!
+        #   To use your own trained model for prediction, you must modify weight_path and classes_path!
         #   model_path points to the weights file under the logs folder,
         #       classes_path points to the txt under model_data
         #
@@ -38,8 +38,7 @@ class YoloDecode(object):
         #   If the shape does not match, pay attention to the modification of the model_path
         #       and classes_path parameters during training
         # =====================================================================
-        self.weights_path = 'data/yolov3.weights'
-        self.model_path = 'data/yolov3_weights.h5'
+        self.weight_path = 'data/yolov3_weights.h5'
         self.classes_path = 'data/coco_classes.txt'
 
         # =====================================================================
@@ -102,27 +101,11 @@ class YoloDecode(object):
         # =====================================================================
         #   Load model weights
         # =====================================================================
-        model_path = os.path.join(os.path.dirname(__file__), self.model_path)
-        weights_path = os.path.join(os.path.dirname(__file__), self.weights_path)
+        weight_path = os.path.join(os.path.dirname(__file__), self.weight_path)
+        assert weight_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
 
-        try:
-            if os.path.isfile(model_path):
-                assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
-
-                self.model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
-                print('{} model, anchors, and classes loaded.'.format(model_path))
-            else:
-                raise Exception("Keras model does not present.")
-        except:
-            if os.path.isfile(weights_path):
-                assert weights_path.endswith('.weights'), 'Yolo weights must be a .weights file.'
-
-                weight_reader = WeightReader(weights_path)
-                weight_reader.load_weights(self.model_body)
-                self.model_body.save(weights_path.split('.')[0] + '.h5')
-                print('{} model, anchors, and classes loaded.'.format(weights_path))
-            else:
-                raise Exception("Yolo weights too does not present.")
+        self.model_body.load_weights(weight_path, by_name=True, skip_mismatch=True)
+        print('{} model, anchors, and classes loaded.'.format(weight_path))
 
         # =====================================================================
         #   In the DecodeBox function, we will post-process the prediction results

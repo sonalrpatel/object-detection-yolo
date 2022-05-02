@@ -66,15 +66,15 @@ def _main():
     #
     #   Pre-training weights must be used in 99% of cases. If they are not used, the weights of the main part are too
     #       random, the feature extraction effect is not obvious, and the results of network training will not be good
-    #   If there is an operation that interrupts the training during the training process, you can set the model_path
+    #   If there is an operation that interrupts the training during the training process, you can set the weight_path
     #       to the weights file in the logs folder, and reload the weights that have been trained
     #   At the same time, modify the parameters of the freeze phase or thaw phase below to ensure the continuity
     #       of the model epoch
     #
-    #   When model_path = '', the weights of the entire model are not loaded.
+    #   When weight_path = '', the weights of the entire model are not loaded.
     #
     #   The weights of the entire model are used here, so they are loaded in train.py
-    #   If you want the model to start training from 0, set model_path = '', the following freeze_body = False,
+    #   If you want the model to start training from 0, set weight_path = '', the following freeze_body = False,
     #       then start training from 0, and there is no process of freezing the backbone
     #   Generally speaking, starting from 0 will have a poor training effect, because the weights are too random,
     #       and the feature extraction effect is not obvious
@@ -86,7 +86,7 @@ def _main():
     #   First, train the classification model. The backbone part of the classification model is common to the model,
     #       and training is based on this
     # =======================================================
-    model_path = PATH_MODEL
+    weight_path = PATH_WEIGHT
 
     # =======================================================
     #   Directory to store the model weigths
@@ -155,14 +155,11 @@ def _main():
     # =======================================================
     #   Load pretrained weights
     # =======================================================
-    if model_path != '':
-        # load the weights trained on COCO into the model
-        # option 1
-        # weight_reader = WeightReader(weights_path)
-        # weight_reader.load_weights(model_body)
-        # option 2
-        print('Load weights {}.'.format(model_path))
-        model_body.load_weights(model_path, by_name=True, skip_mismatch=True)
+    if weight_path != '':
+        assert weight_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        print('Load weights {}.'.format(weight_path))
+
+        model_body.load_weights(weight_path, by_name=True, skip_mismatch=True)
 
     # =======================================================
     #   Construct model with loss layer

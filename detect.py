@@ -206,13 +206,8 @@ def draw_boxes(image, boxes, labels, obj_thresh):
 
 
 def _main():
-    model_path = "data/yolov3_weights.h5"
-    weights_path = "data/yolov3.weights"
+    weight_path = "data/yolov3_weights.h5"
     image_path = "data/apple.jpg"
-
-    model_path = os.path.join(os.path.dirname(__file__), model_path)
-    weights_path = os.path.join(os.path.dirname(__file__), weights_path)
-    image_path = os.path.join(os.path.dirname(__file__), image_path)
 
     # set some parameters
     net_h, net_w = 416, 416
@@ -241,14 +236,15 @@ def _main():
     # run model summary
     yolov3.summary()
 
-    # load the weights trained on COCO into the model
-    # option 1
-    # weight_reader = WeightReader(weights_path)
-    # weight_reader.load_weights(yolov3)
-    # option 2
-    yolov3.load_weights(model_path, by_name=True, skip_mismatch=True)
+    # load the darknet weights trained on COCO into the model
+    weight_path = os.path.join(os.path.dirname(__file__), weight_path)
+    assert weight_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+
+    yolov3.load_weights(weight_path, by_name=True, skip_mismatch=True)
+    print('{} model, anchors, and classes loaded.'.format(weight_path))
 
     # preprocess the image
+    image_path = os.path.join(os.path.dirname(__file__), image_path)
     image = cv2.imread(image_path)
     image_h, image_w, _ = image.shape
     new_image = preprocess_input(image, net_h, net_w)

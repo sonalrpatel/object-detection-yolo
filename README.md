@@ -53,6 +53,8 @@
 * https://github.com/qqwweee/keras-yolo3
 * https://machinelearningspace.com/yolov3-tensorflow-2-part-3/
 * https://pylessons.com/YOLOv3-custom-training
+* "custom training"
+* https://blog.roboflow.com/training-a-yolov3-object-detection-model-with-a-custom-dataset/
 * "load yolo weights (yolo3)"
 * https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/
 * https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py
