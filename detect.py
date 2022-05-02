@@ -206,7 +206,7 @@ def draw_boxes(image, boxes, labels, obj_thresh):
 
 
 def _main():
-    model_path = "data/yolo_weights.h5"
+    model_path = "data/yolov3_weights.h5"
     weights_path = "data/yolov3.weights"
     image_path = "data/apple.jpg"
 

@@ -22,7 +22,7 @@ YOLO_ANCHORS = [[[10, 13], [16, 30], [33, 23]],         # 52x52 grids for small 
                 [[30, 61], [62, 45], [59, 119]],        # 26x26 grids for medium objects
                 [[116, 90], [156, 198], [373, 326]]]    # 13x13 grids for large objects
 YOLO_ANCHORS_MASK = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
-YOLO_LAYERNAME = False
+YOLO_LAYER_WITH_NAMES = True
 
 # IMAGE size
 IMAGE_SIZE = (416, 416)
@@ -34,7 +34,8 @@ DIR_IMAGE = DIR_DATA + "images"
 DIR_LABEL = DIR_DATA + "labels"
 PATH_CLASSES = DIR_DATA + "coco_classes.txt"
 PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
-PATH_MODEL = DIR_DATA + 'yolo_weights.h5'
+PATH_MODEL = DIR_DATA + 'yolov3_weights.h5'
+PATH_DARKNET_WEIGHT = DIR_DATA + 'yolov3.weights'
 
 # TRAIN options
 TRAIN_YOLO_TINY = False

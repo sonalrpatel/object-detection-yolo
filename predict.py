@@ -39,7 +39,7 @@ class YoloDecode(object):
         #       and classes_path parameters during training
         # =====================================================================
         self.weights_path = 'data/yolov3.weights'
-        self.model_path = 'data/yolo_weights.h5'
+        self.model_path = 'data/yolov3_weights.h5'
         self.classes_path = 'data/coco_classes.txt'
 
         # =====================================================================

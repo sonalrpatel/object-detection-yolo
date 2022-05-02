@@ -8,9 +8,7 @@ from tensorflow.keras.layers import LeakyReLU, BatchNormalization
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras import Input, Model
-
-from utils.utils import WeightReader
-from configs import YOLO_LAYERNAME
+from configs import YOLO_LAYER_WITH_NAMES
 
 """
 Information about architecture config:
@@ -29,10 +27,10 @@ def DarknetConv2D_BN_Leaky(inputs, n_filters, kernel_size=(3, 3), down_sample=Fa
 
     x = Conv2D(n_filters, kernel_size=kernel_size, strides=strides, padding=padding, use_bias=use_bias,
                kernel_initializer=RandomNormal(stddev=0.02), kernel_regularizer=l2(5e-4),
-               name='conv_' + str(layer_idx) if YOLO_LAYERNAME else None)(inputs)
+               name='conv_' + str(layer_idx) if YOLO_LAYER_WITH_NAMES else None)(inputs)
     if bn_act:
-        x = BatchNormalization(name='bnorm_' + str(layer_idx) if YOLO_LAYERNAME else None)(x)
-        x = LeakyReLU(alpha=0.1, name='leaky_' + str(layer_idx) if YOLO_LAYERNAME else None)(x)
+        x = BatchNormalization(name='bnorm_' + str(layer_idx) if YOLO_LAYER_WITH_NAMES else None)(x)
+        x = LeakyReLU(alpha=0.1, name='leaky_' + str(layer_idx) if YOLO_LAYER_WITH_NAMES else None)(x)
 
     return x
 
@@ -97,29 +95,29 @@ def YOLOv3(input_shape=(416, 416, 3), num_classes=80):
 
     def model(inputs, num_classes):
         # Layer 0 => 74
-        skip_36, skip_61, x = DarkNet53(inputs, layer_idx=0)
+        skip_36, skip_61, x_74 = DarkNet53(inputs, layer_idx=0)
 
         # Layer 75 => 79
-        x = UpSampleConv(x, 512, layer_idx=75)
+        x_79 = UpSampleConv(x_74, 512, layer_idx=75)
         # Layer 80 => 81
-        y_lbbox = ScalePrediction(x, 1024, num_classes, layer_idx=80)
+        y_lbbox_81 = ScalePrediction(x_79, 1024, num_classes, layer_idx=80)
 
         # Layer 84 => 91
-        x = UpSampleConv([x, skip_61], 256, layer_idx=84)
+        x_91 = UpSampleConv([x_79, skip_61], 256, layer_idx=84)
         # Layer 92 => 93
-        y_mbbox = ScalePrediction(x, 512, num_classes, layer_idx=92)
+        y_mbbox_93 = ScalePrediction(x_91, 512, num_classes, layer_idx=92)
 
         # Layer 96 => 103
-        x = UpSampleConv([x, skip_36], 128, layer_idx=96)
+        x_103 = UpSampleConv([x_91, skip_36], 128, layer_idx=96)
         # Layer 104 => 105
-        y_sbbox = ScalePrediction(x, 256, num_classes, layer_idx=104)
+        y_sbbox_105 = ScalePrediction(x_103, 256, num_classes, layer_idx=104)
 
-        return [y_lbbox, y_mbbox, y_sbbox]
+        return [y_lbbox_81, y_mbbox_93, y_sbbox_105]
 
     return Model(inputs=[x], outputs=model(x, num_classes))
 
 
-if __name__ == "__main__":
+def _main():
     num_classes = 80
     image_size = 416
     image_shape = (image_size, image_size, 3)
@@ -127,20 +125,8 @@ if __name__ == "__main__":
     # define the model
     model = YOLOv3(image_shape, num_classes)
 
-    # read the model weights
-    rel_path = "../data/yolov3.weights"
-    abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
-    weight_reader = WeightReader(abs_file_path)
-
-    # set/load the weights into the model
-    weight_reader.load_weights(model)
-
-    # save the model to .h5 file
-    model.save('../data/yolo_weights.h5')
-
-    model.load_weights(os.path.join(os.path.dirname(__file__), '../data/yolo_weights.h5'))
-
-    input_tensor = Input(image_shape)
-    output_tensor = model(input_tensor)
-
     print(model.summary())
+
+
+if __name__ == "__main__":
+    _main()
