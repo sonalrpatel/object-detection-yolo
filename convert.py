@@ -231,9 +231,11 @@ def _main(args):
                 'Unsupported section header type: {}'.format(section))
 
     # Create and save model.
-    if len(out_index) == 0: out_index.append(len(all_layers) - 1)
+    if len(out_index) == 0:
+        out_index.append(len(all_layers) - 1)
     model = Model(inputs=input_layer, outputs=[all_layers[i] for i in out_index])
     print(model.summary())
+
     if args.weights_only:
         model.save_weights('{}'.format(output_path))
         print('Saved Keras weights to {}'.format(output_path))

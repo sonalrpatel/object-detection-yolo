@@ -7,7 +7,7 @@ import os
 import cv2
 import time
 import colorsys
-import numpy as np
+import argparse
 import tensorflow as tf
 from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
@@ -19,6 +19,14 @@ from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
 from utils.utils import *
 from utils.utils_bbox import *
+
+
+parser = argparse.ArgumentParser(description='Objects detection on an Image using Yolov3')
+parser.add_argument(
+    '-i',
+    '--image_path',
+    default=None,
+    help='Path to the image file.')
 
 
 class YoloDecode(object):
@@ -290,7 +298,7 @@ class YoloDecode(object):
         return
 
 
-def _main():
+def _main(args):
     # =====================================================================
     #   Create an object of yolo result class
     # =====================================================================
@@ -352,7 +360,7 @@ def _main():
     # =====================================================================
     if mode == "predict":
         import os
-        image_path = "data/apple.jpg"
+        image_path = args.image_path if args.image_path is not None else "data/apple.jpg"
         image = Image.open(os.path.join(os.path.dirname(__file__), image_path))
         image_out = yolo.detect_image(image)
         image_out.show()
@@ -428,4 +436,6 @@ def _main():
 
 
 if __name__ == '__main__':
-    _main()
+    # run following command (as per current folder structure) on terminal
+    # python predict.py [-i] <image_path>
+    _main(parser.parse_args())

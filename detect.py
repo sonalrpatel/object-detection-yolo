@@ -1,11 +1,20 @@
 import os
 import cv2
-import pandas as pd
+import argparse
+
 from model_keras_yolo3.yolo import make_yolov3_model
 from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
 from utils.utils import *
 from configs import *
+
+
+parser = argparse.ArgumentParser(description='Objects detection on an Image using Yolov3')
+parser.add_argument(
+    '-i',
+    '--image_path',
+    default=None,
+    help='Path to the image file.')
 
 
 # References
@@ -205,9 +214,9 @@ def draw_boxes(image, boxes, labels, obj_thresh):
     return image
 
 
-def _main():
+def _main(args):
+    image_path = args.image_path if args.image_path is not None else "data/apple.jpg"
     weight_path = "data/yolov3_weights.h5"
-    image_path = "data/apple.jpg"
 
     # set some parameters
     net_h, net_w = 416, 416
@@ -234,7 +243,7 @@ def _main():
     # yolov3 = yolo_body((None, None, 3), anchors_mask, num_classes)
 
     # run model summary
-    yolov3.summary()
+    # yolov3.summary()
 
     # load the darknet weights trained on COCO into the model
     weight_path = os.path.join(os.path.dirname(__file__), weight_path)
@@ -271,4 +280,6 @@ def _main():
 
 
 if __name__ == '__main__':
-    _main()
+    # run following command (as per current folder structure) on terminal
+    # python detect.py [-i] <image_path>
+    _main(parser.parse_args())
