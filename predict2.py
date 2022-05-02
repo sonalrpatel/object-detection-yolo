@@ -1,5 +1,5 @@
 # =========================================================================
-#   predict.py integrates functions such as single image prediction, video/camera detection, FPS test and
+#   predict2.py integrates functions such as single image prediction, video/camera detection, FPS test and
 #       directory traversal detection.
 #   It is integrated into a py file, and the mode is modified by specifying the mode.
 # =========================================================================
@@ -347,7 +347,7 @@ def _main(args):
 
     # =====================================================================
     #   If you want to save the detected image, use image_out.save("img.jpg") to save it, and modify it directly in
-    #       predict.py.
+    #       predict2.py.
     #   If you want to get the coordinates of the prediction frame, you can enter the yolo.detect_image function and
     #       read the four values of top, left, bottom, and right in the drawing part.
     #   If you want to use the prediction frame to intercept the target, you can enter the yolo.detect_image function,
@@ -437,5 +437,5 @@ def _main(args):
 
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
-    # python predict.py [-i] <image_path>
+    # python predict2.py [-i] <image_path>
     _main(parser.parse_args())
