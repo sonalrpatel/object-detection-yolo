@@ -46,7 +46,7 @@ class YoloDecode(object):
         #   If the shape does not match, pay attention to the modification of the model_path
         #       and classes_path parameters during training
         # =====================================================================
-        self.weight_path = 'data/yolov3_weights.h5'
+        self.weight_path = 'data/yolov3.h5'
         self.classes_path = 'data/coco_classes.txt'
 
         # =====================================================================
@@ -102,9 +102,9 @@ class YoloDecode(object):
         # =====================================================================
         #   Create a yolo model
         # =====================================================================
-        self.model_body = YOLOv3((None, None, 3), self.num_classes)
+        # self.model_body = YOLOv3((None, None, 3), self.num_classes)
         # self.model_body = make_yolov3_model((None, None, 3))
-        # self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
+        self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
 
         # =====================================================================
         #   Load model weights
@@ -170,7 +170,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Normalize the image
         # =====================================================================
-        image_data = normalize_input(np.array(image_data, dtype='float32'))
+        image_data = preprocess_input(np.array(image_data, dtype='float32'))
         return image_data
 
     # =====================================================================
@@ -180,7 +180,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Set font and border thickness
         # =====================================================================
-        font = ImageFont.truetype(font='data/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        font = ImageFont.truetype(font='font/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
         thickness = int(max((image.size[0] + image.size[1]) // np.mean(self.input_shape), 1))
 
         # =====================================================================
