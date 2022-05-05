@@ -28,10 +28,10 @@ YOLO_LAYER_WITH_NAMES = True
 IMAGE_SIZE = (416, 416)
 
 # Dataset
-# DATA_DIR = "D:/01_PythonAIML/00_Datasets/PASCAL_VOC/"
+# DATA_DIR = "data/demo/images/"
 DIR_DATA = "data/"
-DIR_IMAGE = DIR_DATA + "images"
-DIR_LABEL = DIR_DATA + "labels"
+DIR_IMAGE = DIR_DATA + "demo/images/"
+DIR_LABEL = DIR_DATA + "demo/images/"
 PATH_CLASSES = DIR_DATA + "coco_classes.txt"
 PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
 PATH_WEIGHT = DIR_DATA + 'yolov3.h5'
@@ -42,7 +42,7 @@ TRAIN_YOLO_TINY = False
 TRAIN_SAVE_BEST_ONLY = True  # saves only best model according validation loss (True recommended)
 TRAIN_SAVE_CHECKPOINT = False  # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOGDIR = "log"
-TRAIN_ANNOT_PATH = DIR_DATA + "annotations.txt"
+TRAIN_ANNOT_PATH = DIR_DATA + "demo/annotations.txt"
 TRAIN_CHECKPOINTS_FOLDER = "checkpoints"
 TRAIN_MODEL_NAME = f"{YOLO_TYPE}_custom"
 TRAIN_LOAD_IMAGES_TO_RAM = True  # With True faster training, but need more RAM
