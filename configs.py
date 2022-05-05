@@ -10,7 +10,7 @@
 # YOLO options
 YOLO_TYPE = "yolov3"
 YOLO_FRAMEWORK = "tf"
-YOLO_V3_WEIGHTS = "data/yolov3.weights"
+YOLO_V3_WEIGHTS = "yolov3.weights"
 YOLO_CUSTOM_WEIGHTS = False
 YOLO_IOU_LOSS_THRESH = 0.5
 YOLO_STRIDES = [8, 16, 32]
@@ -28,10 +28,9 @@ YOLO_LAYER_WITH_NAMES = True
 IMAGE_SIZE = (416, 416)
 
 # Dataset
-# DATA_DIR = "data/demo/images/"
 DIR_DATA = "data/"
 DIR_IMAGE = DIR_DATA + "demo/images/"
-DIR_LABEL = DIR_DATA + "demo/images/"
+DIR_LABEL = DIR_DATA + "demo/labels/"
 PATH_CLASSES = DIR_DATA + "coco_classes.txt"
 PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
 PATH_WEIGHT = DIR_DATA + 'yolov3.h5'
@@ -58,13 +57,13 @@ TRAIN_EPOCHS = 100
 
 # VAL options
 VAL_ANNOT_PATH = DIR_DATA + "demo/annotations.txt"
-VAL_BATCH_SIZE = 8
+VAL_BATCH_SIZE = 16
 VAL_INPUT_SIZE = 416
 VAL_DATA_AUG = False
 
 # TEST options
 TEST_ANNOT_PATH = DIR_DATA + "test.csv"
-TEST_BATCH_SIZE = 8
+TEST_BATCH_SIZE = 16
 TEST_INPUT_SIZE = 416
 TEST_DATA_AUG = False
 TEST_DECTECTED_IMAGE_PATH = ""
@@ -72,4 +71,4 @@ TEST_SCORE_THRESHOLD = 0.3
 TEST_IOU_THRESHOLD = 0.5
 
 # LOG directory
-LOG_DIR = "D:/01_PythonAIML/06_myProjects/object-detection-yolo3/logs/weights/"
+LOG_DIR = "logs/weights/"

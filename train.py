@@ -1,3 +1,7 @@
+import os
+import random
+import tensorflow as tf
+import numpy as np
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.optimizers import Adam
@@ -16,6 +20,32 @@ from model_yolo3_tf2.dataloader import YoloDataGenerator
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
 from configs import *
+
+# =======================================================
+# Set a seed value
+# =======================================================
+seed_value = 12321
+
+# =======================================================
+# 1. Set `PYTHONHASHSEED` environment variable at a fixed value
+# =======================================================
+os.environ['PYTHONHASHSEED'] = str(seed_value)
+
+# =======================================================
+# 2. Set `python` built-in pseudo-random generator at a fixed value
+# =======================================================
+random.seed(seed_value)
+
+# =======================================================
+# 3. Set `numpy` pseudo-random generator at a fixed value
+# =======================================================
+np.random.seed(seed_value)
+
+# =======================================================
+# 4. Set `tensorflow` pseudo-random generator at a fixed value
+# =======================================================
+tf.random.set_seed(seed_value)
+print(tf.__version__)
 
 """""
 When training your own target detection model, you must pay attention to the following points: 
@@ -101,7 +131,7 @@ def _main():
     # =======================================================
     #   The size of the input shape must be a multiple of 32
     # =======================================================
-    image_shape = (IMAGE_SIZE[0], IMAGE_SIZE[1], 3)
+    image_shape = IMAGE_SIZE
 
     # =======================================================
     #   The training is divided into two phases, the freezing phase and the thawing phase
@@ -116,7 +146,7 @@ def _main():
     # =======================================================
     init_epoch = 0
     freeze_epoch = 25
-    freeze_batch_size = 16
+    freeze_batch_size = TRAIN_BATCH_SIZE
     freeze_lr = 1e-3
 
     # =======================================================
@@ -124,14 +154,14 @@ def _main():
     #   At this time, the backbone of the model is not frozen, and the feature extraction network will change
     #   The occupied video memory is large, and all the parameters of the network will be changed
     # =======================================================
-    unfreeze_epoch = 100
-    unfreeze_batch_size = 8
+    unfreeze_epoch = 50
+    unfreeze_batch_size = int(TRAIN_BATCH_SIZE / 2)
     unfreeze_lr = 1e-4
 
     # =======================================================
     #   Whether to freeze training, the default is to freeze the main training first and then unfreeze the training
     # =======================================================
-    freeze_body = 1
+    freeze_body = True
 
     # =======================================================
     #   Used to set whether to use multi-threading to read data, 1 means to turn off multi-threading
@@ -177,7 +207,7 @@ def _main():
         output_shape=(1,),
         name='yolo_loss',
         arguments={
-            'input_shape': image_shape[0:2],
+            'input_shape': image_shape,
             'anchors': anchors,
             'anchors_mask': anchors_mask,
             'num_classes': num_classes
@@ -185,6 +215,7 @@ def _main():
     )([*model_body.output, *y_true])
 
     model = Model([model_body.input, *y_true], model_loss)
+    model.summary()
 
     # =======================================================
     #   Callbacks
@@ -205,9 +236,8 @@ def _main():
     # =======================================================
     #   Freeze body
     # =======================================================
-    if freeze_body in [1, 2]:
-        # Freeze darknet53 body or freeze all but 3 output layers
-        freeze_layers = (184, len(model_body.layers) - 3)[freeze_body - 1]
+    if freeze_body:
+        freeze_layers = 184
         for i in range(freeze_layers):
             model_body.layers[i].trainable = False
         print('Freeze the first {} layers of total {} layers.'.format(freeze_layers, len(model_body.layers)))
@@ -226,10 +256,11 @@ def _main():
         start_epoch = init_epoch
         end_epoch = freeze_epoch
 
-        train_dataloader = YoloDataGenerator('train')
-        val_dataloader = YoloDataGenerator('val')
+        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, batch_size, num_classes,
+                                             anchors_mask, do_aug=False)
+        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, batch_size, num_classes,
+                                           anchors_mask, do_aug=False)
 
-        model.summary()
         model.compile(optimizer=Adam(learning_rate=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
         model.fit(
@@ -250,7 +281,7 @@ def _main():
     #   Unfreeze layers trainability
     #   Continue training
     # =======================================================
-    if freeze_body in [1, 2]:
+    if freeze_body:
         for i in range(len(model.layers)):
             model.layers[i].trainable = True
 

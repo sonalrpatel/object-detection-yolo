@@ -1,14 +1,10 @@
-import os
 import math
 import cv2
-import numpy as np
-from PIL import Image
 from random import shuffle
 from tensorflow import keras
 
-from configs import *
 from utils.utils import *
-from utils.utils import cvtColor, preprocess_input
+from utils.utils import convert2rgb, preprocess_input
 
 
 def read_lines(annotation_path):
@@ -46,17 +42,16 @@ class YoloDataset(object):
 
 
 class YoloDataGenerator(keras.utils.Sequence):
-    def __init__(self, mode):
-        self.annotation_lines = read_lines({'train': TRAIN_ANNOT_PATH, 'val': VAL_ANNOT_PATH}[mode])
-        self.batch_size = {'train': TRAIN_BATCH_SIZE, 'val': VAL_BATCH_SIZE}[mode]
-        self.input_shape = IMAGE_SIZE
-        self.anchors_mask = YOLO_ANCHORS_MASK
+    def __init__(self, annotation_path, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
+        self.annotation_lines = read_lines(annotation_path)
+        self.batch_size = batch_size
+        self.input_shape = input_shape
+        self.anchors = anchors
+        self.anchors_mask = anchors_mask
+        self.num_classes = num_classes
         self.num_scales = len(self.anchors_mask)
         self.num_samples = len(self.annotation_lines)
-        self.num_batchs = int(np.ceil(self.num_samples / self.batch_size))
-        self.classes, self.num_classes = get_classes(PATH_CLASSES)
-        self.anchors, self.num_anchors = get_anchors(PATH_ANCHORS)
-        self.random = {'train': False, 'val': False}[mode]
+        self.train = do_aug
 
     def __len__(self):
         """
@@ -112,42 +107,44 @@ class YoloDataGenerator(keras.utils.Sequence):
         """
         Random preprocessing for real-time data augmentation
         """""
-        # ------------------------------#
-        #   读取图像并转换成RGB图像
-        # ------------------------------#
+        # =======================================
+        #   Read image and convert to RGB image
+        # =======================================
         image = Image.open(img_bboxes_pair[0])
-        image = cvtColor(image)
+        image = convert2rgb(image)
 
-        # ------------------------------#
-        #   获得图像的高宽与目标高宽
-        # ------------------------------#
+        # =======================================
+        #   Get the height and width of the image and the target height and width
+        # =======================================
         iw, ih = image.size
         h, w = self.input_shape
 
-        # ------------------------------#
-        #   获得预测框
-        # ------------------------------#
+        # =======================================
+        #   Get prediction box
+        # =======================================
         box = img_bboxes_pair[1]
 
         if not random:
-            # resize image
+            # =======================================
+            #   Resize image
+            # =======================================
             scale = min(w / iw, h / ih)
             nw = int(iw * scale)
             nh = int(ih * scale)
             dx = (w - nw) // 2
             dy = (h - nh) // 2
 
-            # ---------------------------------#
-            #   将图像多余的部分加上灰条
-            # ---------------------------------#
+            # =======================================
+            #   Add gray bars to the extra parts of the image
+            # =======================================
             image = image.resize((nw, nh), Image.BICUBIC)
             new_image = Image.new('RGB', (w, h), (128, 128, 128))
             new_image.paste(image, (dx, dy))
             image_data = np.array(new_image, np.float32)
 
-            # ---------------------------------#
-            #   对真实框进行调整
-            # ---------------------------------#
+            # =======================================
+            #   Adjust the real box
+            # =======================================
             box_data = np.zeros((max_boxes, 5))
             if len(box) > 0:
                 np.random.shuffle(box)
@@ -165,9 +162,9 @@ class YoloDataGenerator(keras.utils.Sequence):
 
             return image_data, box_data
 
-        # ------------------------------------------#
-        #   对图像进行缩放并且进行长和宽的扭曲
-        # ------------------------------------------#
+        # =======================================
+        #   Scale the image and distort the length and width
+        # =======================================
         new_ar = w / h * self.rand(1 - jitter, 1 + jitter) / self.rand(1 - jitter, 1 + jitter)
         scale = self.rand(.25, 2)
         if new_ar < 1:
@@ -178,24 +175,24 @@ class YoloDataGenerator(keras.utils.Sequence):
             nh = int(nw / new_ar)
         image = image.resize((nw, nh), Image.BICUBIC)
 
-        # ------------------------------------------#
-        #   将图像多余的部分加上灰条
-        # ------------------------------------------#
+        # =======================================
+        #   Add gray bars to the extra parts of the image
+        # =======================================
         dx = int(self.rand(0, w - nw))
         dy = int(self.rand(0, h - nh))
         new_image = Image.new('RGB', (w, h), (128, 128, 128))
         new_image.paste(image, (dx, dy))
         image = new_image
 
-        # ------------------------------------------#
-        #   翻转图像
-        # ------------------------------------------#
+        # =======================================
+        #   Flip the image
+        # =======================================
         flip = self.rand() < .5
         if flip: image = image.transpose(Image.FLIP_LEFT_RIGHT)
 
-        # ------------------------------------------#
-        #   色域扭曲
-        # ------------------------------------------#
+        # =======================================
+        #   Gamut distortion
+        # =======================================
         hue = self.rand(-hue, hue)
         sat = self.rand(1, sat) if self.rand() < .5 else 1 / self.rand(1, sat)
         val = self.rand(1, val) if self.rand() < .5 else 1 / self.rand(1, val)
@@ -210,9 +207,9 @@ class YoloDataGenerator(keras.utils.Sequence):
         x[x < 0] = 0
         image_data = cv2.cvtColor(x, cv2.COLOR_HSV2RGB) * 255  # numpy array, 0 to 1
 
-        # ---------------------------------#
-        #   对真实框进行调整
-        # ---------------------------------#
+        # =======================================
+        #   Adjust the real box
+        # =======================================
         box_data = np.zeros((max_boxes, 5))
         if len(box) > 0:
             np.random.shuffle(box)
@@ -229,7 +226,7 @@ class YoloDataGenerator(keras.utils.Sequence):
             box_data[:len(box)] = box
 
         return image_data, box_data
-
+    
     def preprocess_true_boxes(self, true_boxes):
         """
         Preprocess true boxes to training input format
@@ -244,141 +241,135 @@ class YoloDataGenerator(keras.utils.Sequence):
         true_boxes = np.array(true_boxes, dtype='float32')
         input_shape = np.array(self.input_shape, dtype='int32')
 
-        # -----------------------------------------------------------#
+        # =======================================
         #   grid_shapes -> [[13,13], [26,26], [52,52]]
-        # -----------------------------------------------------------#
+        # =======================================
         grid_shapes = [input_shape // {0: 32, 1: 16, 2: 8}[s] for s in range(self.num_scales)]
 
-        # -----------------------------------------------------------#
+        # =======================================
         #   self.batch_size -> number of images
         #   y_true -> [(m,13,13,3,85),(m,26,26,3,85),(m,52,52,3,85)]
-        # -----------------------------------------------------------#
+        # =======================================
         # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
         y_true = [np.zeros((self.batch_size, grid_shapes[s][0], grid_shapes[s][1], len(self.anchors_mask[s]),
                             5 + self.num_classes), dtype='float32') for s in range(self.num_scales)]
 
-        # -----------------------------------------------------------#
+        # =======================================
         #   calculate center point xy, box width and box height
         #   boxes_xy shape -> (m,n,2)  boxes_wh -> (m,n,2)
         #   (x_min, y_min, x_max, y_max) is converted to (x_center, y_center, width, height) relative to input shape
-        # -----------------------------------------------------------#
+        # =======================================
         boxes_xy = (true_boxes[..., 0:2] + true_boxes[..., 2:4]) // 2
         boxes_wh = true_boxes[..., 2:4] - true_boxes[..., 0:2]
 
-        # -----------------------------------------------------------#
+        # =======================================
         #   normalization
-        # -----------------------------------------------------------#
+        # =======================================
         true_boxes[..., 0:2] = boxes_xy / input_shape[::-1]
         true_boxes[..., 2:4] = boxes_wh / input_shape[::-1]
 
-        # -----------------------------------------------------------#
+        # =======================================
         # 	Expand dim to apply broadcasting
         #   [9,2] -> [1,9,2]
-        # -----------------------------------------------------------#
+        # =======================================
         anchors = np.expand_dims(self.anchors, 0)
         anchor_maxes = anchors / 2.
         anchor_mins = -anchor_maxes
 
-        # -----------------------------------------------------------#
+        # =======================================
         # 	number of non zero boxes
         #   only retrieve image width > 0
-        # -----------------------------------------------------------#
+        # =======================================
         num_nz_boxes = (np.count_nonzero(boxes_wh, axis=1).sum(axis=1) / 2).astype('int32')
 
-        # -----------------------------------------------------------#
+        # =======================================
         #   Loop all the image
-        # -----------------------------------------------------------#
+        # =======================================
         for b_idx in range(self.batch_size):
-            # -----------------------------------------------------------#
+            # =======================================
             #   Discard zero rows
-            # -----------------------------------------------------------#
+            # =======================================
             box_wh = boxes_wh[b_idx, 0:num_nz_boxes[b_idx]]
             if box_wh.shape[0] == 0:
                 continue
 
-            # -----------------------------------------------------------#
+            # =======================================
             # 	Expand dim to apply broadcasting
             #   [n,2] -> [n,1,2]
-            # -----------------------------------------------------------#			
+            # =======================================			
             box_wh = np.expand_dims(box_wh, -2)
             box_maxes = box_wh / 2.
             box_mins = -box_maxes
 
-            # -----------------------------------------------------------#
+            # =======================================
             # 	Find intersection area
             #   Calculate IOU between true box and pre-defined anchors
             #   intersect_area  [n,9]
             #   box_area        [n,1]
             #   anchor_area     [1,9]
             #   iou             [n,9]
-            # -----------------------------------------------------------#			
+            # =======================================			
             intersect_mins = np.maximum(box_mins, anchor_mins)
             intersect_maxes = np.minimum(box_maxes, anchor_maxes)
             intersect_wh = np.maximum(intersect_maxes - intersect_mins, 0.)
             intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
 
-            # find box area
+            #   Find box area
             box_area = box_wh[..., 0] * box_wh[..., 1]
 
-            # find anchor area
+            #   Find anchor area
             anchor_area = anchors[..., 0] * anchors[..., 1]
 
-            # find iou
+            #   Find iou
             iou_anchors = intersect_area / (box_area + anchor_area - intersect_area)
 
-            # -----------------------------------------------------------#
-            # Find best anchor for each true box
-            # -----------------------------------------------------------#
+            # =======================================
+            #   Find best anchor for each true box
+            # =======================================
             best_anchor_indices = np.argmax(iou_anchors, axis=-1)
 
-            # -----------------------------------------------------------#
-            # loop all the best anchors, try to find it to which feature layer below
-            # (m 13, 13, 3, 85), (m 26, 26, 3, 85),  (m 52, 52, 3, 85)
-            # y_true shape:
-            # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
-            # -----------------------------------------------------------#			
+            # =======================================
+            #   loop all the best anchors, try to find it to which feature layer below
+            #   (m 13, 13, 3, 85), (m 26, 26, 3, 85),  (m 52, 52, 3, 85)
+            #   y_true shape:
+            #       [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
+            # =======================================			
             for box_no, anchor_idx in enumerate(best_anchor_indices):
-                # -----------------------------------------------------------#
+                # =======================================
                 #   Loop all the layers
                 # 	[[6, 7, 8], [3, 4, 5], [0, 1, 2]]
-                # -----------------------------------------------------------#
+                # =======================================
                 for s in range(self.num_scales):
                     if anchor_idx in self.anchors_mask[s]:
                         scale_idx = s
                         scale = tuple(grid_shapes[s])
 
-                        # -----------------------------------------------------------#
-                        # dimensions of a single box
-                        # -----------------------------------------------------------#
+                        # =======================================
+                        #   dimensions of a single box
+                        # =======================================
                         x, y, width, height = true_boxes[b_idx, box_no, 0:4]
 
-                        # -----------------------------------------------------------#
-                        # index of the grid cell having the center of the bbox
-                        # -----------------------------------------------------------#
+                        # =======================================
+                        #   index of the grid cell having the center of the bbox
+                        # =======================================
                         i = np.floor(x * scale[1]).astype('int32')
                         j = np.floor(y * scale[0]).astype('int32')
 
-                        # -----------------------------------------------------------#
+                        # =======================================
                         #   anchor_on_scale -> index of pre-defined anchors
-                        # -----------------------------------------------------------#
+                        # =======================================
                         anchor_on_scale = self.anchors_mask[s].index(anchor_idx)
 
-                        # -----------------------------------------------------------#
+                        # =======================================
                         #   class_label -> the object category
-                        # -----------------------------------------------------------#
+                        # =======================================
                         class_label = true_boxes[b_idx, box_no, 4].astype('int32')
 
-                        # -----------------------------------------------------------#
+                        # =======================================
                         #   y_true => shape => (m,13,13,3,85) or (m,26,26,3,85) or (m,52,52,3,85)
-                        # -----------------------------------------------------------#
+                        # =======================================
                         y_true[scale_idx][b_idx, j, i, anchor_on_scale, 0:4] = np.array([x, y, width, height])
                         y_true[scale_idx][b_idx, j, i, anchor_on_scale, 4] = 1
                         y_true[scale_idx][b_idx, j, i, anchor_on_scale, 5 + class_label] = 1
 
         return y_true
-
-
-if __name__ == "__main__":
-    ydg = YoloDataGenerator('train')
-    num_batches = ydg.__len__()
-    X0, y0 = ydg.__getitem__(0)
