@@ -57,7 +57,7 @@ TRAIN_WARMUP_EPOCHS = 2
 TRAIN_EPOCHS = 100
 
 # VAL options
-VAL_ANNOT_PATH = DIR_DATA + "annotations.txt"
+VAL_ANNOT_PATH = DIR_DATA + "demo/annotations.txt"
 VAL_BATCH_SIZE = 8
 VAL_INPUT_SIZE = 416
 VAL_DATA_AUG = False
