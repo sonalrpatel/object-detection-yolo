@@ -24,7 +24,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         self.batch_size = batch_size
         self.num_classes = num_classes
         self.anchors_mask = anchors_mask
-        self.train = do_aug
+        self.do_aug = do_aug
 
     def __len__(self):
         return math.ceil(len(self.annotation_lines) / float(self.batch_size))
@@ -38,7 +38,7 @@ class YoloDataGenerator(keras.utils.Sequence):
             #   Random data enhancement
             #   No random enhancement of data occurs during validation
             # ===============================================
-            image, box = self.get_random_data(self.annotation_lines[i], self.input_shape, random=self.train)
+            image, box = self.get_random_data(self.annotation_lines[i], self.input_shape, random=self.do_aug)
             image_data.append(preprocess_input(np.array(image)))
             box_data.append(box)
 

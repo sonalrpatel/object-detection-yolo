@@ -51,7 +51,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         self.num_classes = num_classes
         self.num_scales = len(self.anchors_mask)
         self.num_samples = len(self.annotation_lines)
-        self.train = do_aug
+        self.do_aug = do_aug
 
     def __len__(self):
         """
@@ -84,7 +84,7 @@ class YoloDataGenerator(keras.utils.Sequence):
                                np.array([list(map(int, box.split(',')))
                                          for box in self.annotation_lines[i].split()[1:]])]
 
-            image, box = self.process_data(img_bboxes_pair, random=self.random)
+            image, box = self.process_data(img_bboxes_pair, random=self.do_aug)
             image_data.append(preprocess_input(np.array(image)))
             box_data.append(box)
 
