@@ -34,7 +34,7 @@ DIR_IMAGE = DIR_DATA + "images"
 DIR_LABEL = DIR_DATA + "labels"
 PATH_CLASSES = DIR_DATA + "coco_classes.txt"
 PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
-PATH_WEIGHT = DIR_DATA + 'yolov3_weights.h5'
+PATH_WEIGHT = DIR_DATA + 'yolov3.h5'
 PATH_DARKNET_WEIGHT = DIR_DATA + 'yolov3.weights'
 
 # TRAIN options

@@ -1,3 +1,4 @@
+import os
 import math
 import cv2
 import numpy as np
@@ -19,22 +20,31 @@ def read_lines(annotation_path):
 class YoloDataGenerator(keras.utils.Sequence):
     def __init__(self, mode):
         self.annotation_lines = read_lines({'train': TRAIN_ANNOT_PATH, 'val': VAL_ANNOT_PATH}[mode])
-        self.length = len(self.annotation_lines)
-        self.input_shape = IMAGE_SIZE
-        self.anchors, self.num_anchors = get_anchors(PATH_ANCHORS)
         self.batch_size = {'train': TRAIN_BATCH_SIZE, 'val': VAL_BATCH_SIZE}[mode]
-        self.classes, self.num_classes = get_classes(PATH_CLASSES)
+        self.input_shape = IMAGE_SIZE
         self.anchors_mask = YOLO_ANCHORS_MASK
+        self.num_scales = len(self.anchors_mask)
+        self.num_samples = len(self.annotation_lines)
+        self.num_batchs = int(np.ceil(self.num_samples / self.batch_size))
+        self.classes, self.num_classes = get_classes(PATH_CLASSES)
+        self.anchors, self.num_anchors = get_anchors(PATH_ANCHORS)
         self.random = {'train': False, 'val': False}[mode]
 
     def __len__(self):
-        return math.ceil(len(self.annotation_lines) / float(self.batch_size))
+        """
+        Denotes the number of batches per epoch
+        """""
+        return math.ceil(self.num_samples / float(self.batch_size))
 
     def __getitem__(self, index):
+        """
+        Generates data containing batch_size samples
+        """""
         image_data = []
         box_data = []
-        for i in range(index * self.batch_size, (index + 1) * self.batch_size):
-            i = i % self.length
+        batch_indexes = range(index * self.batch_size, (index + 1) * self.batch_size)
+        for i in batch_indexes:
+            i = i % self.num_samples
             # ---------------------------------------------------#
             #   训练时进行数据的随机增强
             #   验证时不进行数据的随机增强
@@ -46,9 +56,14 @@ class YoloDataGenerator(keras.utils.Sequence):
         image_data = np.array(image_data)
         box_data = np.array(box_data)
         y_true = self.preprocess_true_boxes(box_data, self.input_shape, self.anchors, self.num_classes)
+
+        # return image_data, y_true
         return [image_data, *y_true], np.zeros(self.batch_size)
 
     def on_epoch_begin(self):
+        """
+        Shuffle indexes at start of each epoch
+        """""
         shuffle(self.annotation_lines)
 
     def rand(self, a=0, b=1):
@@ -56,6 +71,9 @@ class YoloDataGenerator(keras.utils.Sequence):
 
     def get_random_data(self, annotation_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5,
                         random=True):
+        """
+        Random preprocessing for real-time data augmentation
+        """""
         line = annotation_line.split()
 
         # ------------------------------#

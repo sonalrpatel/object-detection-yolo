@@ -6,8 +6,13 @@ from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from model_keras_yolo3.yolo import make_yolov3_model
 from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
-from loss.loss_functional import yolo_loss
-from dataloader.dataloader import YoloDataGenerator
+
+# from loss.loss_functional import yolo_loss
+from model_yolo3_tf2.yolo_training import yolo_loss
+
+# from dataloader.dataloader import YoloDataGenerator
+from model_yolo3_tf2.dataloader import YoloDataGenerator
+
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
 from configs import *
@@ -110,7 +115,7 @@ def _main():
     #   Occupy less memory, only fine-tune the network
     # =======================================================
     init_epoch = 0
-    freeze_epoch = 50
+    freeze_epoch = 25
     freeze_batch_size = 16
     freeze_lr = 1e-3
 
@@ -147,9 +152,9 @@ def _main():
     # =======================================================
     #   Create a yolo model
     # =======================================================
-    model_body = YOLOv3((None, None, 3), num_classes)
+    # model_body = YOLOv3((None, None, 3), num_classes)
     # model_body2 = make_yolov3_model((None, None, 3))
-    # model_body3 = yolo_body((None, None, 3), anchors_mask, num_classes)
+    model_body = yolo_body((None, None, 3), anchors_mask, num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     # =======================================================
@@ -202,7 +207,7 @@ def _main():
     # =======================================================
     if freeze_body in [1, 2]:
         # Freeze darknet53 body or freeze all but 3 output layers
-        freeze_layers = (185, len(model_body.layers) - 3)[freeze_body - 1]
+        freeze_layers = (184, len(model_body.layers) - 3)[freeze_body - 1]
         for i in range(freeze_layers):
             model_body.layers[i].trainable = False
         print('Freeze the first {} layers of total {} layers.'.format(freeze_layers, len(model_body.layers)))
