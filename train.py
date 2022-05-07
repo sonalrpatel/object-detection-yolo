@@ -286,6 +286,7 @@ def _main():
     if freeze_body:
         for i in range(len(model.layers)):
             model.layers[i].trainable = True
+    print('Unfreeze all the layers.')
 
     if True:
         lr = unfreeze_lr

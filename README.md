@@ -55,9 +55,13 @@
 * https://pylessons.com/YOLOv3-custom-training
 * "custom training"
 * https://blog.roboflow.com/training-a-yolov3-object-detection-model-with-a-custom-dataset/
+* "transfer learning over yolo"
+* https://hub.packtpub.com/5-types-of-deep-transfer-learning/
 * "load yolo weights (yolo3)"
 * https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/
 * https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py
+* https://medium.com/@cunhafh/transfer-learning-with-yolo-v3-darknet-and-google-colab-7f9a6f9c2afc
+* https://tiwarinitin1999.medium.com/yolov3-custom-object-detection-with-transfer-learning-47186c8f166d
 * "load yolo weights (yolo4)"
 * https://dsbyprateekg.blogspot.com/2020/06/how-to-convert-your-yolov4-weights-to.html
 * https://medium.com/@ravindrareddysiddam/how-to-convert-yolov4-from-weights-to-h5-format-b50b244b3298
