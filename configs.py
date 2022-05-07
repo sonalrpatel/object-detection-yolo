@@ -28,20 +28,21 @@ YOLO_LAYER_WITH_NAMES = True
 IMAGE_SIZE = (416, 416)
 
 # Dataset
-DIR_DATA = "data/"
-DIR_IMAGE = DIR_DATA + "demo/images/"
-DIR_LABEL = DIR_DATA + "demo/labels/"
+DIR_DATA = "data/demo/"
+DIR_TRAIN = DIR_DATA + "train/"
+DIR_VALID = DIR_DATA + "valid/"
+DIR_TEST = DIR_DATA + "test/"
 PATH_CLASSES = DIR_DATA + "coco_classes.txt"
-PATH_ANCHORS = DIR_DATA + 'yolo_anchors.txt'
-PATH_WEIGHT = DIR_DATA + 'yolov3.h5'
-PATH_DARKNET_WEIGHT = DIR_DATA + 'yolov3.weights'
+PATH_ANCHORS = "data/yolo_anchors.txt"
+PATH_WEIGHT = "data/yolov3.h5"
+PATH_DARKNET_WEIGHT = "data/yolov3.weights"
 
 # TRAIN options
 TRAIN_YOLO_TINY = False
 TRAIN_SAVE_BEST_ONLY = True  # saves only best model according validation loss (True recommended)
 TRAIN_SAVE_CHECKPOINT = False  # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOGDIR = "log"
-TRAIN_ANNOT_PATH = DIR_DATA + "demo/annotations.txt"
+TRAIN_ANNOT_PATH = DIR_TRAIN + "_annotations.txt"
 TRAIN_CHECKPOINTS_FOLDER = "checkpoints"
 TRAIN_MODEL_NAME = f"{YOLO_TYPE}_custom"
 TRAIN_LOAD_IMAGES_TO_RAM = True  # With True faster training, but need more RAM
@@ -56,13 +57,13 @@ TRAIN_WARMUP_EPOCHS = 2
 TRAIN_EPOCHS = 100
 
 # VAL options
-VAL_ANNOT_PATH = DIR_DATA + "demo/annotations.txt"
+VAL_ANNOT_PATH = DIR_VALID + "_annotations.txt"
 VAL_BATCH_SIZE = 16
 VAL_INPUT_SIZE = 416
 VAL_DATA_AUG = False
 
 # TEST options
-TEST_ANNOT_PATH = DIR_DATA + "test.csv"
+TEST_ANNOT_PATH = DIR_TEST + "_annotations.txt"
 TEST_BATCH_SIZE = 16
 TEST_INPUT_SIZE = 416
 TEST_DATA_AUG = False

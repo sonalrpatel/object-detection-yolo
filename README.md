@@ -77,3 +77,6 @@
 * https://towardsdatascience.com/coco-data-format-for-object-detection-a4c5eaf518c5
 * https://cocodataset.org/#home
 * http://host.robots.ox.ac.uk/pascal/VOC/index.html
+
+### TODOs
+* data/demo to be properly made

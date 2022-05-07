@@ -1,3 +1,4 @@
+import os
 import math
 import cv2
 import numpy as np
@@ -14,31 +15,49 @@ def read_lines(annotation_path):
     return annot_lines
 
 
+def load_img_bboxes_pairs(annotation_path):
+    """
+    Load annotations
+    Customize this function as per your dataset
+    :return:
+        list of pairs of image path and corresponding bounding boxes
+        example:
+        [['.../00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
+                                                           [0.529, 0.856, 0.125, 0.435, 4.0]]]
+         ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
+    """""
+    lines = read_lines(annotation_path)
+    img_bboxes_pairs = [[annotation_path.rsplit('/', 1)[0] + '/' + line.split()[0],
+                         np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
+                        for line in lines]
+    return img_bboxes_pairs
+
+
 class YoloDataGenerator(keras.utils.Sequence):
     def __init__(self, annotation_path, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
-        self.annotation_lines = read_lines(annotation_path)
-        self.length = len(self.annotation_lines)
-
+        self.img_bboxes_pairs = load_img_bboxes_pairs(annotation_path)
         self.input_shape = input_shape
         self.anchors = anchors
         self.batch_size = batch_size
         self.num_classes = num_classes
+        self.num_samples = len(self.img_bboxes_pairs)
+        self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.anchors_mask = anchors_mask
         self.do_aug = do_aug
 
     def __len__(self):
-        return math.ceil(len(self.annotation_lines) / float(self.batch_size))
+        return self.num_batches
 
     def __getitem__(self, index):
         image_data = []
         box_data = []
         for i in range(index * self.batch_size, (index + 1) * self.batch_size):
-            i = i % self.length
+            i = i % self.num_samples
             # ===============================================
             #   Random data enhancement
             #   No random enhancement of data occurs during validation
             # ===============================================
-            image, box = self.get_random_data(self.annotation_lines[i], self.input_shape, random=self.do_aug)
+            image, box = self.get_random_data(self.img_bboxes_pairs[i], self.input_shape, random=self.do_aug)
             image_data.append(preprocess_input(np.array(image)))
             box_data.append(box)
 
@@ -53,13 +72,12 @@ class YoloDataGenerator(keras.utils.Sequence):
     def rand(self, a=0, b=1):
         return np.random.rand() * (b - a) + a
 
-    def get_random_data(self, annotation_line, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5,
+    def get_random_data(self, img_bboxes_pair, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5,
                         random=True):
-        line = annotation_line.split()
         # ===============================================
         #   Reads the image and converts it to an RGB image
         # ===============================================
-        image = Image.open(line[0])
+        image = Image.open(img_bboxes_pair[0])
         image = convert2rgb(image)
 
         # ===============================================
@@ -71,7 +89,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         # ===============================================
         #   Gets the forecast box
         # ===============================================
-        box = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
+        box = img_bboxes_pair[1]
 
         if not random:
             scale = min(w / iw, h / ih)
@@ -102,7 +120,8 @@ class YoloDataGenerator(keras.utils.Sequence):
                 box_w = box[:, 2] - box[:, 0]
                 box_h = box[:, 3] - box[:, 1]
                 box = box[np.logical_and(box_w > 1, box_h > 1)]
-                if len(box) > max_boxes: box = box[:max_boxes]
+                if len(box) > max_boxes:
+                    box = box[:max_boxes]
                 box_data[:len(box)] = box
 
             return image_data, box_data
