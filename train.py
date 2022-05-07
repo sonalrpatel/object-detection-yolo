@@ -124,9 +124,11 @@ def _main():
     weight_path = PATH_WEIGHT
 
     # =======================================================
-    #   Directory to store the model weigths
+    #   Directory to store the model weights
     # =======================================================
     log_dir = LOG_DIR
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
     # =======================================================
     #   The size of the input shape must be a multiple of 32
@@ -226,12 +228,12 @@ def _main():
     #   early_stopping is used to set early stop, and val_loss will automatically end the training without falling for
     #       many times, indicating that the model is basically converged
     # =======================================================
-    logging = TensorBoard(log_dir='logs/')
-    checkpoint = ModelCheckpoint('logs/ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5', monitor='val_loss',
-                                 save_weights_only=True, save_best_only=False, period=1)
+    logging = TensorBoard(log_dir)
+    checkpoint = ModelCheckpoint(log_dir + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5', monitor='val_loss',
+                                 save_weights_only=True, save_best_only=True, period=1)
     reduce_lr = ExponentDecayScheduler(decay_rate=0.94, verbose=1)
     early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1)
-    loss_history = LossHistory('logs/')
+    loss_history = LossHistory(log_dir)
 
     # =======================================================
     #   Freeze body

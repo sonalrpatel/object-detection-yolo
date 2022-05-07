@@ -72,4 +72,4 @@ TEST_SCORE_THRESHOLD = 0.3
 TEST_IOU_THRESHOLD = 0.5
 
 # LOG directory
-LOG_DIR = "logs/weights/"
+LOG_DIR = "logs/"
