@@ -11,11 +11,11 @@ from model_keras_yolo3.yolo import make_yolov3_model
 from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
 
-# from loss.loss_functional import yolo_loss
-from model_yolo3_tf2.yolo_training import yolo_loss
+from loss.loss_functional import yolo_loss
+# from model_yolo3_tf2.yolo_training import yolo_loss
 
-# from dataloader.dataloader import YoloDataGenerator
-from model_yolo3_tf2.dataloader import YoloDataGenerator
+from dataloader.dataloader import YoloDataGenerator
+# from model_yolo3_tf2.dataloader import YoloDataGenerator
 
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
@@ -184,9 +184,9 @@ def _main():
     # =======================================================
     #   Create a yolo model
     # =======================================================
-    # model_body = YOLOv3((None, None, 3), num_classes)
+    model_body = YOLOv3((None, None, 3), num_classes)
     # model_body2 = make_yolov3_model((None, None, 3))
-    model_body = yolo_body((None, None, 3), anchors_mask, num_classes)
+    # model_body = yolo_body((None, None, 3), anchors_mask, num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     # =======================================================

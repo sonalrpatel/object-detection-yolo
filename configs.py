@@ -32,9 +32,9 @@ DIR_DATA = "data/demo/"
 DIR_TRAIN = DIR_DATA + "train/"
 DIR_VALID = DIR_DATA + "valid/"
 DIR_TEST = DIR_DATA + "test/"
-PATH_CLASSES = DIR_DATA + "coco_classes.txt"
+PATH_CLASSES = DIR_TRAIN + "_classes.txt"
 PATH_ANCHORS = "data/yolo_anchors.txt"
-PATH_WEIGHT = "data/yolov3.h5"
+PATH_WEIGHT = "data/yolov3_weights.h5"
 PATH_DARKNET_WEIGHT = "data/yolov3.weights"
 
 # TRAIN options
