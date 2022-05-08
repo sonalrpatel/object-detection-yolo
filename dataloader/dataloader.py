@@ -13,44 +13,35 @@ def read_lines(annotation_path):
     return annot_lines
 
 
-class YoloDataset(object):
-    # Dataset preprocess implementation
-    def __init__(self, annot_path):
-        super(YoloDataset, self).__init__()
-        if not os.path.exists(annot_path):
-            annot_path = os.path.join(os.path.dirname(__file__), '..', annot_path)
-        self.annotation_path = annot_path
-        self.img_bboxes_pairs = self.load_img_bboxes_pairs()
-
-    def load_img_bboxes_pairs(self):
-        """
-        Load annotations
-        Customize this function as per your dataset
-        :return:
-            list of pairs of image path and corresponding bounding boxes
-            example:
-            [['.../00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
-                                                               [0.529, 0.856, 0.125, 0.435, 4.0]]]
-             ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
-        """""
-        lines = read_lines(self.annotation_path)
-
-        img_bboxes_pairs = [[line.split()[0], np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
-                            for line in lines]
-
-        return img_bboxes_pairs
+def load_img_bboxes_pairs(annotation_path):
+    """
+    Load annotations
+    Customize this function as per your dataset
+    :return:
+        list of pairs of image path and corresponding bounding boxes
+        example:
+        [['.../00_Datasets/PASCAL_VOC/images/000007.jpg', [[0.639, 0.567, 0.718, 0.840, 6.0],
+                                                           [0.529, 0.856, 0.125, 0.435, 4.0]]]
+         ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
+    """""
+    lines = read_lines(annotation_path)
+    img_bboxes_pairs = [[annotation_path.rsplit('/', 1)[0] + '/' + line.split()[0],
+                         np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
+                        for line in lines]
+    return img_bboxes_pairs
 
 
 class YoloDataGenerator(keras.utils.Sequence):
     def __init__(self, annotation_path, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
-        self.annotation_lines = read_lines(annotation_path)
-        self.batch_size = batch_size
+        self.img_bboxes_pairs = load_img_bboxes_pairs(annotation_path)
         self.input_shape = input_shape
+        self.batch_size = batch_size
         self.anchors = anchors
         self.anchors_mask = anchors_mask
         self.num_classes = num_classes
+        self.num_samples = len(self.img_bboxes_pairs)
+        self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.num_scales = len(self.anchors_mask)
-        self.num_samples = len(self.annotation_lines)
         self.do_aug = do_aug
 
     def __len__(self):
@@ -80,11 +71,8 @@ class YoloDataGenerator(keras.utils.Sequence):
         box_data = []
         for i in batch_indexes:
             i = i % self.num_samples
-            img_bboxes_pair = [self.annotation_lines[i].split()[0],
-                               np.array([list(map(int, box.split(',')))
-                                         for box in self.annotation_lines[i].split()[1:]])]
 
-            image, box = self.process_data(img_bboxes_pair, random=self.do_aug)
+            image, box = self.process_data(self.img_bboxes_pairs[i], self.input_shape, random=self.do_aug)
             image_data.append(preprocess_input(np.array(image)))
             box_data.append(box)
 
@@ -103,7 +91,8 @@ class YoloDataGenerator(keras.utils.Sequence):
     def rand(self, a=0, b=1):
         return np.random.rand() * (b - a) + a
 
-    def process_data(self, img_bboxes_pair, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5, random=True):
+    def process_data(self, img_bboxes_pair, input_shape, max_boxes=100, jitter=.3, hue=.1, sat=1.5, val=1.5,
+                     random=True):
         """
         Random preprocessing for real-time data augmentation
         """""
@@ -117,7 +106,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         #   Get the height and width of the image and the target height and width
         # =======================================
         iw, ih = image.size
-        h, w = self.input_shape
+        h, w = input_shape
 
         # =======================================
         #   Get prediction box
