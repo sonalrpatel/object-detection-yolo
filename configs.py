@@ -28,7 +28,7 @@ YOLO_LAYER_WITH_NAMES = True
 IMAGE_SIZE = (416, 416)
 
 # Dataset
-DIR_DATA = "data/demo/"
+DIR_DATA = "data/fruits/"
 DIR_TRAIN = DIR_DATA + "train/"
 DIR_VALID = DIR_DATA + "valid/"
 DIR_TEST = DIR_DATA + "test/"
