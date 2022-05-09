@@ -1,2 +1,9 @@
 
 logs/
+data/sample/
+data/*.h5
+data/*.weights
+.idea/
+*.pyc
+*.xml
+*.iml

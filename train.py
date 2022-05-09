@@ -136,7 +136,12 @@ def _main():
     image_shape = IMAGE_SIZE
 
     # =======================================================
-    #   The training is divided into two phases, the freezing phase and the thawing phase
+    #   Whether to freeze training, the default is to freeze the main training first and then unfreeze the training
+    # =======================================================
+    freeze_body = TRAIN_FREEZE_BODY
+
+    # =======================================================
+    #   The training is divided into two phases, the freezing phase and the thawing phase (when freeze_body is True)
     #   Insufficient video memory has nothing to do with the size of the data set
     #   If it indicates that the video memory is insufficient, please reduce the batch_size
     #   Affected by the BatchNorm layer, the minimum batch_size is 2 and cannot be 1
@@ -146,24 +151,23 @@ def _main():
     #   At this time, the backbone of the model is frozen, and the feature extraction network does not change
     #   Occupy less memory, only fine-tune the network
     # =======================================================
-    init_epoch = 0
-    freeze_epoch = 25
-    freeze_batch_size = TRAIN_BATCH_SIZE
-    freeze_lr = 1e-3
+    init_epoch = TRAIN_FREEZE_INIT_EPOCH
+    freeze_end_epoch = TRAIN_FREEZE_END_EPOCH
+    train_batch_size = TRAIN_BATCH_SIZE
+    freeze_lr = TRAIN_FREEZE_LR
 
     # =======================================================
     #   Unfreeze phase training parameters
     #   At this time, the backbone of the model is not frozen, and the feature extraction network will change
     #   The occupied video memory is large, and all the parameters of the network will be changed
     # =======================================================
-    unfreeze_epoch = 50
-    unfreeze_batch_size = VAL_BATCH_SIZE
-    unfreeze_lr = 1e-4
+    unfreeze_end_epoch = TRAIN_UNFREEZE_END_EPOCH
+    unfreeze_lr = TRAIN_UNFREEZE_LR
 
     # =======================================================
-    #   Whether to freeze training, the default is to freeze the main training first and then unfreeze the training
+    # Validation parameters
     # =======================================================
-    freeze_body = True
+    val_batch_size = VAL_BATCH_SIZE
 
     # =======================================================
     #   Used to set whether to use multi-threading to read data, 1 means to turn off multi-threading
@@ -248,30 +252,25 @@ def _main():
     #   The backbone feature extraction network features are common, and freezing training can speed up training
     #   Also prevents weights from being corrupted at the beginning of training
     #   init_epoch is the starting generation
-    #   freeze_epoch is the epoch to freeze training
-    #   unfreeze_epoch total training generation
+    #   freeze_end_epoch is the epoch to freeze training
+    #   unfreeze_end_epoch total training generation
     #   Prompt OOM or insufficient video memory, please reduce the Batch_size
     # =======================================================
     if True:
-        lr = freeze_lr
-        batch_size = freeze_batch_size
-        start_epoch = init_epoch
-        end_epoch = freeze_epoch
-
-        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, batch_size, num_classes,
+        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_batch_size, num_classes,
                                              anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, batch_size, num_classes,
+        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size, num_classes,
                                            anchors_mask, do_aug=False)
 
-        model.compile(optimizer=Adam(learning_rate=lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
+        model.compile(optimizer=Adam(learning_rate=freeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
         model.fit(
             train_dataloader,
             steps_per_epoch=train_dataloader.__len__(),
             validation_data=val_dataloader,
             validation_steps=val_dataloader.__len__(),
-            epochs=end_epoch,
-            initial_epoch=start_epoch,
+            initial_epoch=init_epoch,
+            epochs=freeze_end_epoch,
             use_multiprocessing=True if num_workers > 1 else False,
             workers=num_workers,
             callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
@@ -281,26 +280,29 @@ def _main():
 
     # =======================================================
     #   Unfreeze layers trainability
-    #   Continue training
+    #   Continue training (if freeze_body is True)
     # =======================================================
     if freeze_body:
         for i in range(len(model.layers)):
             model.layers[i].trainable = True
-    print('Unfreeze all the layers.')
+        print('Unfreeze all the layers.')
 
-    if True:
-        lr = unfreeze_lr
-        batch_size = unfreeze_batch_size
-        start_epoch = freeze_epoch
-        end_epoch = unfreeze_epoch
+        # note that more GPU memory is required after unfreezing the body
+        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_batch_size, num_classes,
+                                             anchors_mask, do_aug=False)
+        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size, num_classes,
+                                           anchors_mask, do_aug=False)
+
+        # recompile to apply the change
+        model.compile(optimizer=Adam(learning_rate=unfreeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
         model.fit(
             train_dataloader,
             steps_per_epoch=train_dataloader.__len__(),
             validation_data=val_dataloader,
             validation_steps=val_dataloader.__len__(),
-            epochs=end_epoch,
-            initial_epoch=start_epoch,
+            epochs=freeze_end_epoch,
+            initial_epoch=unfreeze_end_epoch,
             use_multiprocessing=True if num_workers > 1 else False,
             workers=num_workers,
             callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
