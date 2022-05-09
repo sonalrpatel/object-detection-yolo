@@ -448,7 +448,7 @@ def _main(args):
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
     # python predict2.py [-i] <image_path>
-    # python predict2.py -w data/yolov3_license.h5 -c data/license_classes.txt -i data/florida_license.jpg
-    # python predict2.py -w data/yolov3_fruits.h5 -c data/fruits/train/_classes.txt -i data/apple.jpg
+    # python predict2.py -w data/yolov3_license.h5 -c data/sample/license_classes.txt -i data/sample/license.jpg
+    # python predict2.py -w data/yolov3_fruits.h5 -c data/fruits/train/_classes.txt -i data/sample/apple.jpg
     _main(parser.parse_args())
 
