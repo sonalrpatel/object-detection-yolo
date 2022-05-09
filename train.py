@@ -157,7 +157,7 @@ def _main():
     #   The occupied video memory is large, and all the parameters of the network will be changed
     # =======================================================
     unfreeze_epoch = 50
-    unfreeze_batch_size = int(TRAIN_BATCH_SIZE / 2)
+    unfreeze_batch_size = VAL_BATCH_SIZE
     unfreeze_lr = 1e-4
 
     # =======================================================
