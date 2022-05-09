@@ -10,7 +10,7 @@ import colorsys
 import argparse
 import tensorflow as tf
 from tqdm import tqdm
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.models import Model
 
@@ -23,6 +23,16 @@ from utils.utils_bbox import *
 
 parser = argparse.ArgumentParser(description='Objects detection on an Image using Yolov3')
 parser.add_argument(
+    '-w',
+    '--weight_path',
+    default=None,
+    help='Path to the weights file.')
+parser.add_argument(
+    '-c',
+    '--classes_path',
+    default=None,
+    help='Path to the classes file.')
+parser.add_argument(
     '-i',
     '--image_path',
     default=None,
@@ -33,11 +43,11 @@ class YoloDecode(object):
     # =====================================================================
     #   Initialize yolo result
     # =====================================================================
-    def __init__(self, **kwargs):
+    def __init__(self, args):
         # =====================================================================
         #   To use your own trained model for prediction, you must modify weight_path and classes_path!
-        #   model_path points to the weights file under the logs folder,
-        #       classes_path points to the txt under model_data
+        #   weight_path points to the weights file under the logs folder,
+        #       classes_path points to the txt under data folder.
         #
         #   After training, there are multiple weight files in the logs folder,
         #       and you can select the validation set with lower loss.
@@ -46,8 +56,8 @@ class YoloDecode(object):
         #   If the shape does not match, pay attention to the modification of the model_path
         #       and classes_path parameters during training
         # =====================================================================
-        self.weight_path = 'data/yolov3.h5'
-        self.classes_path = 'data/coco_classes.txt'
+        self.weight_path = args.weight_path if args.weight_path is not None else 'data/yolov3_weights.h5'
+        self.classes_path = args.classes_path if args.classes_path is not None else 'data/coco_classes.txt'
 
         # =====================================================================
         #   anchors_path represents the txt file corresponding to the a priori box, which is generally not modified.
@@ -102,9 +112,9 @@ class YoloDecode(object):
         # =====================================================================
         #   Create a yolo model
         # =====================================================================
-        # self.model_body = YOLOv3((None, None, 3), self.num_classes)
+        self.model_body = YOLOv3((None, None, 3), self.num_classes)
         # self.model_body = make_yolov3_model((None, None, 3))
-        self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
+        # self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
 
         # =====================================================================
         #   Load model weights
@@ -302,7 +312,7 @@ def _main(args):
     # =====================================================================
     #   Create an object of yolo result class
     # =====================================================================
-    yolo = YoloDecode()
+    yolo = YoloDecode(args)
 
     # =====================================================================
     #   mode is used to specify the mode of the test:
@@ -438,4 +448,6 @@ def _main(args):
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
     # python predict2.py [-i] <image_path>
+    # python predict2.py -w data/yolov3_weights_license.h5 -c data/license_classes.txt -i data/florida_license.jpg
     _main(parser.parse_args())
+
