@@ -127,9 +127,13 @@ def yolo_loss(args, input_shape, anchors, anchors_mask, num_classes, ignore_thre
 
         # =========================================================
         #   calculate xy loss using binary_crossentropy
-        #   K.sigmoid calculation additionally added in this repository compared to original source
         # =========================================================
-        xy_loss = object_mask * box_loss_scale * K.binary_crossentropy(raw_true_xy, K.sigmoid(raw_pred[..., 0:2]),
+        #   Adding K.sigmoid calculation additionally (which is not in original repo) shifted the final prediction
+        #   TODO: need to investigate
+        # =========================================================
+        # xy_loss = object_mask * box_loss_scale * K.binary_crossentropy(raw_true_xy, K.sigmoid(raw_pred[..., 0:2]),
+        #                                                                from_logits=True)
+        xy_loss = object_mask * box_loss_scale * K.binary_crossentropy(raw_true_xy, raw_pred[..., 0:2],
                                                                        from_logits=True)
 
         # =========================================================

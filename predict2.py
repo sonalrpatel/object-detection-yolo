@@ -56,7 +56,7 @@ class YoloDecode(object):
         #   If the shape does not match, pay attention to the modification of the model_path
         #       and classes_path parameters during training
         # =====================================================================
-        self.weight_path = args.weight_path if args.weight_path is not None else 'data/yolov3_weights.h5'
+        self.weight_path = args.weight_path if args.weight_path is not None else 'data/yolov3_coco.h5'
         self.classes_path = args.classes_path if args.classes_path is not None else 'data/coco_classes.txt'
 
         # =====================================================================
@@ -448,6 +448,7 @@ def _main(args):
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
     # python predict2.py [-i] <image_path>
-    # python predict2.py -w data/yolov3_weights_license.h5 -c data/license_classes.txt -i data/florida_license.jpg
+    # python predict2.py -w data/yolov3_license.h5 -c data/license_classes.txt -i data/florida_license.jpg
+    # python predict2.py -w data/yolov3_fruits.h5 -c data/fruits/train/_classes.txt -i data/apple.jpg
     _main(parser.parse_args())
 

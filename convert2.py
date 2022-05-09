@@ -33,7 +33,7 @@ parser.add_argument(
 #   https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/
 #   https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py
 #   Input: yolov3 keras model, yolov3.weights
-#   Output: yolov3_weights.h5
+#   Output: yolov3_coco.h5
 # ===================================================================
 class WeightReader:
     def __init__(self, weight_file):
@@ -131,5 +131,5 @@ def _main(args):
 
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
-    # python convert2.py data/yolov3.weights data/yolov3_weights.h5
+    # python convert2.py data/yolov3.weights data/yolov3_coco.h5
     _main(parser.parse_args())

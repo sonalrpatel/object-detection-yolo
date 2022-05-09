@@ -216,7 +216,7 @@ def draw_boxes(image, boxes, labels, obj_thresh):
 
 def _main(args):
     image_path = args.image_path if args.image_path is not None else "data/apple.jpg"
-    weight_path = "data/yolov3_weights.h5"
+    weight_path = "data/yolov3.h5"
 
     # set some parameters
     net_h, net_w = 416, 416
@@ -238,9 +238,9 @@ def _main(args):
     # anchors = [[116, 90, 156, 198, 373, 326], [30, 61, 62, 45, 59, 119], [10, 13, 16, 30, 33, 23]]
 
     # make the yolov3 model to predict 80 classes on COCO
-    yolov3 = YOLOv3((None, None, 3), num_classes)
+    # yolov3 = YOLOv3((None, None, 3), num_classes)
     # yolov3 = make_yolov3_model((None, None, 3))
-    # yolov3 = yolo_body((None, None, 3), anchors_mask, num_classes)
+    yolov3 = yolo_body((None, None, 3), anchors_mask, num_classes)
 
     # run model summary
     # yolov3.summary()
