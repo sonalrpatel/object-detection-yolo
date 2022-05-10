@@ -151,6 +151,7 @@ def _main():
     #   At this time, the backbone of the model is frozen, and the feature extraction network does not change
     #   Occupy less memory, only fine-tune the network
     # =======================================================
+    train_annot_path = TRAIN_ANNOT_PATH
     init_epoch = TRAIN_FREEZE_INIT_EPOCH
     freeze_end_epoch = TRAIN_FREEZE_END_EPOCH
     train_freeze_batch_size = TRAIN_FREEZE_BATCH_SIZE
@@ -168,6 +169,7 @@ def _main():
     # =======================================================
     # Validation parameters
     # =======================================================
+    val_annot_path = VAL_ANNOT_PATH
     val_batch_size = VAL_BATCH_SIZE
 
     # =======================================================
@@ -258,9 +260,9 @@ def _main():
     #   Prompt OOM or insufficient video memory, please reduce the Batch_size
     # =======================================================
     if True:
-        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_freeze_batch_size,
+        train_dataloader = YoloDataGenerator(train_annot_path, image_shape, anchors, train_freeze_batch_size,
                                              num_classes, anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size,
+        val_dataloader = YoloDataGenerator(val_annot_path, image_shape, anchors, val_batch_size,
                                            num_classes, anchors_mask, do_aug=False)
 
         model.compile(optimizer=Adam(learning_rate=freeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
@@ -289,9 +291,9 @@ def _main():
         print('Unfreeze all the layers.')
 
         # note that more GPU memory is required after unfreezing the body
-        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_unfreeze_batch_size,
+        train_dataloader = YoloDataGenerator(train_annot_path, image_shape, anchors, train_unfreeze_batch_size,
                                              num_classes, anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size,
+        val_dataloader = YoloDataGenerator(val_annot_path, image_shape, anchors, val_batch_size,
                                            num_classes, anchors_mask, do_aug=False)
 
         # recompile to apply the change

@@ -7,10 +7,10 @@ from utils.utils import *
 from utils.utils import convert2rgb, preprocess_input
 
 
-def read_lines(annotation_path):
-    with open(annotation_path) as f:
-        annot_lines = f.readlines()
-    return annot_lines
+def read_lines(path):
+    with open(path) as f:
+        lines = f.readlines()
+    return lines
 
 
 def load_img_bboxes_pairs(annotation_path):
@@ -24,10 +24,13 @@ def load_img_bboxes_pairs(annotation_path):
                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
          ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
     """""
-    lines = read_lines(annotation_path)
-    img_bboxes_pairs = [[annotation_path.rsplit('/', 1)[0] + '/' + line.split()[0],
-                         np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
-                        for line in lines]
+    img_bboxes_pairs = []
+    for path in annotation_path:
+        lines = read_lines(path)
+        pairs = [[path.rsplit('/', 1)[0] + '/' + line.split()[0],
+                  np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
+                 for line in lines]
+        img_bboxes_pairs.extend(pairs)
     return img_bboxes_pairs
 
 
