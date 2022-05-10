@@ -44,6 +44,7 @@
 * https://github.com/pythonlessons/YOLOv3-object-detection-tutorial/tree/master/YOLOv3-custom-training
 * https://github.com/experiencor/keras-yolo3 (good class organisation, refer for generator+augmentation)
 * https://github.com/mystic123/tensorflow-yolo-v3
+* https://github.com/david8862/keras-YOLOv3-model-set
 * "Ok"
 * https://github.com/AtharvaMusale/Vehicle-Detection-and-Tracking-using-YOLOv3-and-Deep-Sort
 * "load yolo weights"

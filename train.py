@@ -153,7 +153,7 @@ def _main():
     # =======================================================
     init_epoch = TRAIN_FREEZE_INIT_EPOCH
     freeze_end_epoch = TRAIN_FREEZE_END_EPOCH
-    train_batch_size = TRAIN_BATCH_SIZE
+    train_freeze_batch_size = TRAIN_FREEZE_BATCH_SIZE
     freeze_lr = TRAIN_FREEZE_LR
 
     # =======================================================
@@ -162,6 +162,7 @@ def _main():
     #   The occupied video memory is large, and all the parameters of the network will be changed
     # =======================================================
     unfreeze_end_epoch = TRAIN_UNFREEZE_END_EPOCH
+    train_unfreeze_batch_size = TRAIN_UNFREEZE_BATCH_SIZE
     unfreeze_lr = TRAIN_UNFREEZE_LR
 
     # =======================================================
@@ -257,10 +258,10 @@ def _main():
     #   Prompt OOM or insufficient video memory, please reduce the Batch_size
     # =======================================================
     if True:
-        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_batch_size, num_classes,
-                                             anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size, num_classes,
-                                           anchors_mask, do_aug=False)
+        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_freeze_batch_size,
+                                             num_classes, anchors_mask, do_aug=False)
+        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size,
+                                           num_classes, anchors_mask, do_aug=False)
 
         model.compile(optimizer=Adam(learning_rate=freeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
@@ -288,10 +289,10 @@ def _main():
         print('Unfreeze all the layers.')
 
         # note that more GPU memory is required after unfreezing the body
-        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_batch_size, num_classes,
-                                             anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size, num_classes,
-                                           anchors_mask, do_aug=False)
+        train_dataloader = YoloDataGenerator(TRAIN_ANNOT_PATH, image_shape, anchors, train_unfreeze_batch_size,
+                                             num_classes, anchors_mask, do_aug=False)
+        val_dataloader = YoloDataGenerator(VAL_ANNOT_PATH, image_shape, anchors, val_batch_size,
+                                           num_classes, anchors_mask, do_aug=False)
 
         # recompile to apply the change
         model.compile(optimizer=Adam(learning_rate=unfreeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
@@ -301,8 +302,8 @@ def _main():
             steps_per_epoch=train_dataloader.__len__(),
             validation_data=val_dataloader,
             validation_steps=val_dataloader.__len__(),
-            epochs=freeze_end_epoch,
-            initial_epoch=unfreeze_end_epoch,
+            initial_epoch=freeze_end_epoch,
+            epochs=unfreeze_end_epoch,
             use_multiprocessing=True if num_workers > 1 else False,
             workers=num_workers,
             callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
