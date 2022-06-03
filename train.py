@@ -1,7 +1,6 @@
 import os
 import random
 import tensorflow as tf
-import numpy as np
 from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.optimizers import Adam
@@ -191,9 +190,9 @@ def _main():
     # =======================================================
     #   Create a yolo model
     # =======================================================
-    model_body = YOLOv3((None, None, 3), num_classes)
-    # model_body2 = make_yolov3_model((None, None, 3))
+    # model_body = make_yolov3_model((None, None, 3))
     # model_body = yolo_body((None, None, 3), anchors_mask, num_classes)
+    model_body = YOLOv3((None, None, 3), num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     # =======================================================
