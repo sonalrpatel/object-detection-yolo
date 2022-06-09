@@ -103,12 +103,12 @@ class YoloDecode(object):
         self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
         self.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), self.colors))
 
-        self.generate()
+        self.__generate()
 
     # =====================================================================
     #   Load model
     # =====================================================================
-    def generate(self):
+    def __generate(self):
         # =====================================================================
         #   Create a yolo model
         # =====================================================================
@@ -164,7 +164,7 @@ class YoloDecode(object):
     # =====================================================================
     #   Preprocess image
     # =====================================================================
-    def preprocess_image(self, image):
+    def __preprocess_image(self, image):
         # =====================================================================
         #   Convert the image to an RGB image here to prevent an error in the prediction of the grayscale image.
         #   The code only supports prediction of RGB images, all other types of images will be converted to RGB
@@ -186,7 +186,7 @@ class YoloDecode(object):
     # =====================================================================
     #   Draw boxes on input image
     # =====================================================================
-    def draw_boxes(self, image, out_boxes, out_scores, out_classes):
+    def __draw_boxes(self, image, out_boxes, out_scores, out_classes):
         # =====================================================================
         #   Set font and border thickness
         # =====================================================================
@@ -233,7 +233,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Preprocess image and Add the batch_size dimension
         # =====================================================================
-        image_data = self.preprocess_image(image)
+        image_data = self.__preprocess_image(image)
 
         image_data = np.expand_dims(image_data, 0)
         input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
@@ -247,7 +247,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Draw bounding boxes on the image using labels
         # =====================================================================
-        self.draw_boxes(image, out_boxes, out_scores, out_classes)
+        self.__draw_boxes(image, out_boxes, out_scores, out_classes)
         return image
 
     # =====================================================================
@@ -257,7 +257,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Preprocess image and Add the batch_size dimension
         # =====================================================================
-        image_data = self.preprocess_image(image)
+        image_data = self.__preprocess_image(image)
         image_data = np.expand_dims(image_data, 0)
 
         # =====================================================================
@@ -281,7 +281,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Preprocess image and Add the batch_size dimension
         # =====================================================================
-        image_data = self.preprocess_image(image)
+        image_data = self.__preprocess_image(image)
         image_data = np.expand_dims(image_data, 0)
 
         # =====================================================================
