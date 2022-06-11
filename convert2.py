@@ -1,6 +1,6 @@
-"""""
-Reads Darknet weights and creates Keras model with TF backend.
-"""""
+# =========================================================================
+# Reads Darknet weights and creates Keras model with TF backend.
+# =========================================================================
 
 import os
 import argparse
@@ -32,6 +32,7 @@ parser.add_argument(
 #   Reference:
 #   https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/
 #   https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py
+#   https://pjreddie.com/media/files/yolov3.weights
 #   Input: yolov3 keras model, yolov3.weights
 #   Output: yolov3_coco.h5
 # ===================================================================
@@ -98,12 +99,10 @@ class WeightReader:
 # %%
 def _main(args):
     weights_path = os.path.expanduser(args.weights_path)
-    assert weights_path.endswith(
-        '.weights'), '{} is not a .weights file'.format(weights_path)
+    assert weights_path.endswith('.weights'), '{} is not a .weights file'.format(weights_path)
 
     output_path = os.path.expanduser(args.output_path)
-    assert output_path.endswith(
-        '.h5'), 'output path {} is not a .h5 file'.format(output_path)
+    assert output_path.endswith('.h5'), 'output path {} is not a .h5 file'.format(output_path)
     output_root = os.path.splitext(output_path)[0]
 
     # create the model

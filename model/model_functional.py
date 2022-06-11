@@ -1,6 +1,6 @@
-"""""
-Implementation of YOLOv3 architecture
-"""""
+# =========================================================================
+# Implementation of YOLOv3 architecture
+# =========================================================================
 import os
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Add, ZeroPadding2D, UpSampling2D, Concatenate

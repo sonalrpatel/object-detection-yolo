@@ -8,7 +8,6 @@ import cv2
 import time
 import colorsys
 import argparse
-import tensorflow as tf
 from tqdm import tqdm
 from PIL import ImageDraw, ImageFont
 from tensorflow.keras.layers import Input, Lambda
@@ -103,12 +102,6 @@ class YoloDecode(object):
         self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
         self.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), self.colors))
 
-        self.__generate()
-
-    # =====================================================================
-    #   Load model
-    # =====================================================================
-    def __generate(self):
         # =====================================================================
         #   Create a yolo model
         # =====================================================================
@@ -121,6 +114,7 @@ class YoloDecode(object):
         # =====================================================================
         weight_path = os.path.join(os.path.dirname(__file__), self.weight_path)
         assert weight_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        assert os.path.exists(weight_path), 'Keras model or weights file does not exist.'
 
         self.model_body.load_weights(weight_path, by_name=True, skip_mismatch=True)
         print('{} model, anchors, and classes loaded.'.format(weight_path))
@@ -370,7 +364,7 @@ def _main(args):
     # =====================================================================
     if mode == "predict":
         import os
-        image_path = args.image_path if args.image_path is not None else "data/apple.jpg"
+        image_path = args.image_path if args.image_path is not None else "data/sample/apple.jpg"
         image = Image.open(os.path.join(os.path.dirname(__file__), image_path))
         image_out = yolo.detect_image(image)
         image_out.show()

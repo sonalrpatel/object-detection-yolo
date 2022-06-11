@@ -5,7 +5,6 @@
 #   GitHub      : https://github.com/sonalrpatel/object-detection-yolo
 #   Description : yolov3 configuration file
 # ================================================================
-# TODO: create such configs file for semantic segmentation project
 
 # YOLO options
 YOLO_TYPE = "yolov3"
