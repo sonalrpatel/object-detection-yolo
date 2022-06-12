@@ -274,14 +274,14 @@ def _main():
         # =======================================================
         train_dataloader = YoloDataGenerator(train_annotation_pairs, image_shape, anchors, train_freeze_batch_size,
                                              num_classes, anchors_mask, do_aug=False)
-        if val_using == "VAL" or "TRAIN":
+        if val_using == "VAL" or val_using == "TRAIN":
             val_dataloader = YoloDataGenerator(val_annotation_pairs, image_shape, anchors, val_batch_size,
                                                num_classes, anchors_mask, do_aug=False)
 
         # =======================================================
         #   Model fit
         # =======================================================
-        if val_using == "VAL" or "TRAIN":
+        if val_using == "VAL" or val_using == "TRAIN":
             model.fit(
                 train_dataloader, steps_per_epoch=train_dataloader.__len__(),
                 validation_data=val_dataloader, validation_steps=val_dataloader.__len__(),
@@ -317,14 +317,14 @@ def _main():
         # =======================================================
         train_dataloader = YoloDataGenerator(train_annotation_pairs, image_shape, anchors, train_unfreeze_batch_size,
                                              num_classes, anchors_mask, do_aug=False)
-        if val_using == "VAL" or "TRAIN":
+        if val_using == "VAL" or val_using == "TRAIN":
             val_dataloader = YoloDataGenerator(val_annotation_pairs, image_shape, anchors, val_batch_size,
                                                num_classes, anchors_mask, do_aug=False)
 
         # =======================================================
         #   Model fit
         # =======================================================
-        if val_using == "VAL" or "TRAIN":
+        if val_using == "VAL" or val_using == "TRAIN":
             model.fit(
                 train_dataloader, steps_per_epoch=train_dataloader.__len__(),
                 validation_data=val_dataloader, validation_steps=val_dataloader.__len__(),
