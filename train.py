@@ -23,7 +23,7 @@ from configs import *
 # =======================================================
 # Set a seed value
 # =======================================================
-seed_value = 12321
+seed_value = 121
 
 # =======================================================
 # 1. Set `PYTHONHASHSEED` environment variable at a fixed value
@@ -38,7 +38,7 @@ random.seed(seed_value)
 # =======================================================
 # 3. Set `numpy` pseudo-random generator at a fixed value
 # =======================================================
-np.random.seed(seed_value)
+# np.random.seed(seed_value)
 
 # =======================================================
 # 4. Set `tensorflow` pseudo-random generator at a fixed value
@@ -83,7 +83,6 @@ def _main():
     # =======================================================
     #   Be sure to modify classes_path before training so that it corresponds to your own dataset
     # =======================================================
-    global val_annotation_pairs, val_dataloader
     classes_path = PATH_CLASSES
 
     # =======================================================
@@ -268,7 +267,7 @@ def _main():
             val_annotation_pairs = YoloAnnotationPairs(val_annot_path)
         if val_using == "TRAIN":
             val_annotation_pairs = random.sample(train_annotation_pairs, int(len(train_annotation_pairs) * val_split))
-            train_annotation_pairs = list(set(train_annotation_pairs) - set(val_annotation_pairs))
+            train_annotation_pairs = [pair for pair in train_annotation_pairs if pair not in val_annotation_pairs]
 
         # =======================================================
         #   Data loaders
