@@ -27,7 +27,7 @@ YOLO_LAYER_WITH_NAMES = True
 IMAGE_SIZE = (416, 416)
 
 # Dataset
-# DIR_DATA is filled as a list to consider multiple dataset folders at same time
+# DIR_DATA is filled as a list so as to consider multiple dataset folders at the same time
 DIR_DATA = ["data/fruits/"]
 DIR_TRAIN = [d + "train/" for d in DIR_DATA]
 DIR_VALID = [d + "valid/" for d in DIR_DATA]
@@ -40,7 +40,7 @@ PATH_DARKNET_WEIGHT = "data/yolov3.weights"
 # TRAIN options
 TRAIN_YOLO_TINY = False
 TRAIN_SAVE_BEST_ONLY = True  # saves only best model according validation loss (True recommended)
-TRAIN_SAVE_CHECKPOINT = False  # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
+TRAIN_SAVE_CHECKPOINT = False  # saves all validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOGDIR = "log"
 TRAIN_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_TRAIN]
 TRAIN_CHECKPOINTS_FOLDER = "checkpoints"
@@ -61,6 +61,8 @@ TRAIN_UNFREEZE_END_EPOCH = 40  # note that it is considered when TRAIN_FREEZE_BO
 VAL_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_VALID]
 VAL_DATA_AUG = False
 VAL_BATCH_SIZE = 16
+VAL_VALIDATION_USING = "VAL"  # note that when validation data does not exist, set it to TRAIN or None
+VAL_VALIDATION_SPLIT = 0.2  # note that it will be used when VAL_VALIDATION_USING is TRAIN
 
 # TEST options
 TEST_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_TEST]

@@ -13,8 +13,8 @@ from model.model_functional import YOLOv3
 from loss.loss_functional import yolo_loss
 # from model_yolo3_tf2.yolo_training import yolo_loss
 
-from dataloader.dataloader import YoloDataGenerator
-# from model_yolo3_tf2.dataloader import YoloDataGenerator
+from dataloader.dataloader import YoloDataGenerator, YoloAnnotationPairs
+# from model_yolo3_tf2.dataloader import YoloDataGenerator, YoloAnnotationPairs
 
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
@@ -83,6 +83,7 @@ def _main():
     # =======================================================
     #   Be sure to modify classes_path before training so that it corresponds to your own dataset
     # =======================================================
+    global val_annotation_pairs, val_dataloader
     classes_path = PATH_CLASSES
 
     # =======================================================
@@ -170,16 +171,11 @@ def _main():
     # =======================================================
     val_annot_path = VAL_ANNOT_PATH
     val_batch_size = VAL_BATCH_SIZE
-
-    # =======================================================
-    #   Used to set whether to use multi-threading to read data, 1 means to turn off multi-threading
-    #   When enabled, it will speed up data reading, but it will take up more memory
-    #   When multi-threading is enabled in keras, sometimes the speed is much slower
-    #   Turn on multithreading when IO is the bottleneck, that is, the GPU operation speed is much faster than the
-    #       speed of reading pictures
-    #   Valid when "eager mode" is False
-    # =======================================================
-    num_workers = 1
+    val_using = VAL_VALIDATION_USING
+    val_split = VAL_VALIDATION_SPLIT
+    assert os.path.exists(val_annot_path[0]) or \
+           (not os.path.exists(val_annot_path[0]) and (val_using == "TRAIN" or val_using is None)), \
+           'VAL_VALIDATION_USING should not be VAL on absence of validation data.'
 
     # =======================================================
     #   Get classes and anchors
@@ -254,29 +250,51 @@ def _main():
     #   The backbone feature extraction network features are common, and freezing training can speed up training
     #   Also prevents weights from being corrupted at the beginning of training
     #   init_epoch is the starting generation
-    #   freeze_end_epoch is the epoch to freeze training
+    #   freeze_end_epoch is the epoch to freeze the training
     #   unfreeze_end_epoch total training generation
     #   Prompt OOM or insufficient video memory, please reduce the Batch_size
     # =======================================================
     if True:
-        train_dataloader = YoloDataGenerator(train_annot_path, image_shape, anchors, train_freeze_batch_size,
-                                             num_classes, anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(val_annot_path, image_shape, anchors, val_batch_size,
-                                           num_classes, anchors_mask, do_aug=False)
-
+        # =======================================================
+        #   Model compile
+        # =======================================================
         model.compile(optimizer=Adam(learning_rate=freeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
-        model.fit(
-            train_dataloader,
-            steps_per_epoch=train_dataloader.__len__(),
-            validation_data=val_dataloader,
-            validation_steps=val_dataloader.__len__(),
-            initial_epoch=init_epoch,
-            epochs=freeze_end_epoch,
-            use_multiprocessing=True if num_workers > 1 else False,
-            workers=num_workers,
-            callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
-        )
+        # =======================================================
+        #   Annotation pairs
+        # =======================================================
+        train_annotation_pairs = YoloAnnotationPairs(train_annot_path)
+        if val_using == "VAL":
+            val_annotation_pairs = YoloAnnotationPairs(val_annot_path)
+        if val_using == "TRAIN":
+            val_annotation_pairs = random.sample(train_annotation_pairs, int(len(train_annotation_pairs) * val_split))
+            train_annotation_pairs = list(set(train_annotation_pairs) - set(val_annotation_pairs))
+
+        # =======================================================
+        #   Data loaders
+        # =======================================================
+        train_dataloader = YoloDataGenerator(train_annotation_pairs, image_shape, anchors, train_freeze_batch_size,
+                                             num_classes, anchors_mask, do_aug=False)
+        if val_using == "VAL" or "TRAIN":
+            val_dataloader = YoloDataGenerator(val_annotation_pairs, image_shape, anchors, val_batch_size,
+                                               num_classes, anchors_mask, do_aug=False)
+
+        # =======================================================
+        #   Model fit
+        # =======================================================
+        if val_using == "VAL" or "TRAIN":
+            model.fit(
+                train_dataloader, steps_per_epoch=train_dataloader.__len__(),
+                validation_data=val_dataloader, validation_steps=val_dataloader.__len__(),
+                initial_epoch=init_epoch, epochs=freeze_end_epoch,
+                callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
+            )
+        else:
+            model.fit(
+                train_dataloader, steps_per_epoch=train_dataloader.__len__(),
+                initial_epoch=init_epoch, epochs=freeze_end_epoch,
+                callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
+            )
 
         model.save_weights(log_dir + 'trained_weights_stage_1.h5')
 
@@ -289,26 +307,37 @@ def _main():
             model.layers[i].trainable = True
         print('Unfreeze all the layers.')
 
-        # note that more GPU memory is required after unfreezing the body
-        train_dataloader = YoloDataGenerator(train_annot_path, image_shape, anchors, train_unfreeze_batch_size,
-                                             num_classes, anchors_mask, do_aug=False)
-        val_dataloader = YoloDataGenerator(val_annot_path, image_shape, anchors, val_batch_size,
-                                           num_classes, anchors_mask, do_aug=False)
-
-        # recompile to apply the change
+        # =======================================================
+        #   Recompile to apply the change
+        # =======================================================
         model.compile(optimizer=Adam(learning_rate=unfreeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
 
-        model.fit(
-            train_dataloader,
-            steps_per_epoch=train_dataloader.__len__(),
-            validation_data=val_dataloader,
-            validation_steps=val_dataloader.__len__(),
-            initial_epoch=freeze_end_epoch,
-            epochs=unfreeze_end_epoch,
-            use_multiprocessing=True if num_workers > 1 else False,
-            workers=num_workers,
-            callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
-        )
+        # =======================================================
+        #   Data loaders
+        #   Note that more GPU memory is required after unfreezing the body
+        # =======================================================
+        train_dataloader = YoloDataGenerator(train_annotation_pairs, image_shape, anchors, train_unfreeze_batch_size,
+                                             num_classes, anchors_mask, do_aug=False)
+        if val_using == "VAL" or "TRAIN":
+            val_dataloader = YoloDataGenerator(val_annotation_pairs, image_shape, anchors, val_batch_size,
+                                               num_classes, anchors_mask, do_aug=False)
+
+        # =======================================================
+        #   Model fit
+        # =======================================================
+        if val_using == "VAL" or "TRAIN":
+            model.fit(
+                train_dataloader, steps_per_epoch=train_dataloader.__len__(),
+                validation_data=val_dataloader, validation_steps=val_dataloader.__len__(),
+                initial_epoch=freeze_end_epoch, epochs=unfreeze_end_epoch,
+                callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
+            )
+        else:
+            model.fit(
+                train_dataloader, steps_per_epoch=train_dataloader.__len__(),
+                initial_epoch=freeze_end_epoch, epochs=unfreeze_end_epoch,
+                callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history]
+            )
 
         model.save_weights(log_dir + 'trained_weights_final.h5')
 

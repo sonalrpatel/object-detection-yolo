@@ -13,7 +13,7 @@ def read_lines(path):
     return lines
 
 
-def load_img_bboxes_pairs(annotation_path):
+def YoloAnnotationPairs(annotation_path):
     """
     Load annotations
     Customize this function as per your dataset
@@ -24,25 +24,25 @@ def load_img_bboxes_pairs(annotation_path):
                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
          ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
     """""
-    img_bboxes_pairs = []
+    annotation_pairs = []
     for path in annotation_path:
         lines = read_lines(path)
         pairs = [[path.rsplit('/', 1)[0] + '/' + line.split()[0],
                   np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
                  for line in lines]
-        img_bboxes_pairs.extend(pairs)
-    return img_bboxes_pairs
+        annotation_pairs.extend(pairs)
+    return annotation_pairs
 
 
 class YoloDataGenerator(keras.utils.Sequence):
-    def __init__(self, annotation_path, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
-        self.img_bboxes_pairs = load_img_bboxes_pairs(annotation_path)
+    def __init__(self, annotation_pairs, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
+        self.annotation_pairs = annotation_pairs
         self.input_shape = input_shape
         self.batch_size = batch_size
         self.anchors = anchors
         self.anchors_mask = anchors_mask
         self.num_classes = num_classes
-        self.num_samples = len(self.img_bboxes_pairs)
+        self.num_samples = len(self.annotation_pairs)
         self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.num_scales = len(self.anchors_mask)
         self.do_aug = do_aug
@@ -75,7 +75,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         for i in batch_indexes:
             i = i % self.num_samples
 
-            image, box = self.process_data(self.img_bboxes_pairs[i], self.input_shape, random=self.do_aug)
+            image, box = self.process_data(self.annotation_pairs[i], self.input_shape, random=self.do_aug)
             image_data.append(preprocess_input(np.array(image)))
             box_data.append(box)
 
@@ -89,7 +89,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         """
         Shuffle indexes at start of each epoch
         """""
-        shuffle(self.img_bboxes_pairs)
+        shuffle(self.annotation_pairs)
 
     def rand(self, a=0, b=1):
         return np.random.rand() * (b - a) + a

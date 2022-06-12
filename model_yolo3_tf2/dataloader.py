@@ -9,13 +9,13 @@ from tensorflow import keras
 from utils.utils import convert2rgb, preprocess_input
 
 
-def read_lines(annotation_path):
-    with open(annotation_path) as f:
-        annot_lines = f.readlines()
-    return annot_lines
+def read_lines(path):
+    with open(path) as f:
+        lines = f.readlines()
+    return lines
 
 
-def load_img_bboxes_pairs(annotation_path):
+def YoloAnnotationPairs(annotation_path):
     """
     Load annotations
     Customize this function as per your dataset
@@ -26,16 +26,19 @@ def load_img_bboxes_pairs(annotation_path):
                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
          ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
     """""
-    lines = read_lines(annotation_path)
-    img_bboxes_pairs = [[annotation_path.rsplit('/', 1)[0] + '/' + line.split()[0],
-                         np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
-                        for line in lines]
-    return img_bboxes_pairs
+    annotation_pairs = []
+    for path in annotation_path:
+        lines = read_lines(path)
+        pairs = [[path.rsplit('/', 1)[0] + '/' + line.split()[0],
+                  np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
+                 for line in lines]
+        annotation_pairs.extend(pairs)
+    return annotation_pairs
 
 
 class YoloDataGenerator(keras.utils.Sequence):
-    def __init__(self, annotation_path, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
-        self.img_bboxes_pairs = load_img_bboxes_pairs(annotation_path)
+    def __init__(self, annotation_pairs, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
+        self.annotation_pairs = annotation_pairs
         self.input_shape = input_shape
         self.anchors = anchors
         self.batch_size = batch_size
@@ -57,7 +60,7 @@ class YoloDataGenerator(keras.utils.Sequence):
             #   Random data enhancement
             #   No random enhancement of data occurs during validation
             # ===============================================
-            image, box = self.get_random_data(self.img_bboxes_pairs[i], self.input_shape, random=self.do_aug)
+            image, box = self.get_random_data(self.annotation_pairs[i], self.input_shape, random=self.do_aug)
             image_data.append(preprocess_input(np.array(image)))
             box_data.append(box)
 
@@ -67,7 +70,7 @@ class YoloDataGenerator(keras.utils.Sequence):
         return [image_data, *y_true], np.zeros(self.batch_size)
 
     def on_epoch_begin(self):
-        shuffle(self.annotation_lines)
+        shuffle(self.annotation_pairs)
 
     def rand(self, a=0, b=1):
         return np.random.rand() * (b - a) + a

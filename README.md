@@ -1,13 +1,38 @@
 # object-detection-yolo
 
-## 1. Introduction
+## Introduction
 
 This repository is an implementation of YOLOv3 in Tensorflow. It contains complete pipeline for training and prediction on custom datasets. <br>
 The primary references are [yolo3-tf2](https://github.com/Qucy/yolo3-tf2) and [keras-yolo3](https://github.com/qqwweee/keras-yolo3) which helped me to understand the implementations and bring up this repo.
 
-## 2. References
+## Predict
 
-The various resources are listed below.
+convert pre-trained Darknet weights to h5 format
+
+```bash
+# yolov3
+wget https://pjreddie.com/media/files/yolov3.weights -O data/yolov3.weights
+python convert2.py --weights_path data/yolov3.weights --output_path data/yolov3_coco.h5
+```
+
+detection on a single image
+
+```bash
+# yolov3
+python predict2.py -w data/yolov3_coco.h5 -c data/coco_classes.txt -i data/sample/apple.jpg
+```
+
+## Training
+
+pending to update 
+
+## Benchmark / Result
+
+pending to update
+
+## References
+
+The various resources referred are organised and listed below.
 
 ### YOLOv1
 
@@ -112,29 +137,6 @@ load yolo weights
 - [pascal VOC](http://host.robots.ox.ac.uk/pascal/VOC/index.html)
 - [2D Bounding box annotation formats for Object detection](https://medium.com/@sonalrpatel/various-object-detection-input-data-formats-5ea04667b778)
 
-## 3. Predict
-
-convert pre-trained Darknet weights to h5 format
-
-```bash
-# yolov3
-wget https://pjreddie.com/media/files/yolov3.weights -O data/yolov3.weights
-python convert2.py --weights_path data/yolov3.weights --output_path data/yolov3_coco.h5
-```
-
-detection on a single image
-
-```bash
-# yolov3
-python predict2.py -w data/yolov3_coco.h5 -c data/coco_classes.txt -i data/sample/apple.jpg
-```
-
-## 4. Training
-
-
-## 5. Benchmark / Result
-
-
-## 6. Todo
+## Todo
 
 - Update the training and benchmark / result sections
