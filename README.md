@@ -80,7 +80,8 @@ model build - data loading - train - predict
 
 - [yolo3-tf2](https://github.com/Qucy/yolo3-tf2)
 - [yolo3-tf2](https://pythonrepo.com/repo/Qucy-yolo3-tf2) (good details for concepts - model/loss/bbox)
-- [keras-yolo3](https://github.com/experiencor/keras-yolo3) (nice class organisation, generator, and augmentation)
+- [keras-yolo3](https://github.com/experiencor/keras-yolo3) (good class organisation, generator, and augmentation)
+- [qqwweee-keras-yolo3](https://github.com/qqwweee/keras-yolo3)
 - [TensorFlow-2.x-YOLOv3](https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3)
 - [YOLOv3-object-detection-custom-training](https://github.com/pythonlessons/YOLOv3-object-detection-tutorial/tree/master/YOLOv3-custom-training)
 - [YOLOv3-TF2-introduction](https://pylessons.com/YOLOv3-TF2-introduction/)
@@ -101,11 +102,10 @@ transfer learning with yolo
 load yolo weights
 
 - [darknet-yolo](https://pjreddie.com/darknet/yolo/)
-- [keras-yolo3](https://github.com/qqwweee/keras-yolo3)
 - [tensorflow-yolo-v3](https://github.com/mystic123/tensorflow-yolo-v3)
-- [implementing-yolo-v3-in-tensorflow](https://itnext.io/implementing-yolo-v3-in-tensorflow-tf-slim-c3c55ff59dbe)
 - [yolov3-tensorflow](https://machinelearningspace.com/yolov3-tensorflow-2-part-3/)
 - [YOLOv3-custom-training](https://pylessons.com/YOLOv3-custom-training)
+- [implementing-yolo-v3-in-tensorflow](https://itnext.io/implementing-yolo-v3-in-tensorflow-tf-slim-c3c55ff59dbe)
 - [how-to-perform-object-detection-with-yolov3](https://machinelearningmastery.com/how-to-perform-object-detection-with-yolov3-in-keras/)
 - [yolo3_one_file_to_detect_them_all](https://github.com/experiencor/keras-yolo3/blob/master/yolo3_one_file_to_detect_them_all.py)
 
