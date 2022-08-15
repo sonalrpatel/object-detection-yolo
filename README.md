@@ -12,14 +12,14 @@ convert pre-trained Darknet weights to h5 format
 ```bash
 # yolov3
 wget https://pjreddie.com/media/files/yolov3.weights -O data/yolov3.weights
-python convert2.py --weights_path data/yolov3.weights --output_path data/yolov3_coco.h5
+python convert.py --weights_path data/yolov3.weights --output_path data/yolov3_coco.h5
 ```
 
 detection on a single image
 
 ```bash
 # yolov3
-python predict2.py -w data/yolov3_coco.h5 -c data/coco_classes.txt -i data/sample/apple.jpg
+python predict.py -w data/yolov3_coco.h5 -c data/coco_classes.txt -i data/sample/apple.jpg
 ```
 
 ## Training

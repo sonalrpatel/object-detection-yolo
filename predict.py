@@ -1,15 +1,36 @@
+# =========================================================================
+#   predict.py integrates functions such as single image prediction, video/camera detection, FPS test and
+#       directory traversal detection.
+#   It is integrated into a py file, and the mode is modified by specifying the mode.
+# =========================================================================
 import os
 import cv2
+import time
+import colorsys
 import argparse
+from tqdm import tqdm
+from PIL import ImageDraw, ImageFont
+from tensorflow.keras.layers import Input, Lambda
+from tensorflow.keras.models import Model
 
 from model_keras_yolo3.yolo import make_yolov3_model
 from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
 from utils.utils import *
-from configs import *
+from utils.utils_bbox import *
 
 
 parser = argparse.ArgumentParser(description='Objects detection on an Image using Yolov3')
+parser.add_argument(
+    '-w',
+    '--weight_path',
+    default=None,
+    help='Path to the weights file.')
+parser.add_argument(
+    '-c',
+    '--classes_path',
+    default=None,
+    help='Path to the classes file.')
 parser.add_argument(
     '-i',
     '--image_path',
@@ -17,269 +38,411 @@ parser.add_argument(
     help='Path to the image file.')
 
 
-# References
-# This file is sourced from https://github.com/experiencor/keras-yolo3 repository
-# yolov3 weights is downloaded from https://pjreddie.com/media/files/yolov3.weights
+class YoloDecode(object):
+    # =====================================================================
+    #   Initialize yolo result
+    # =====================================================================
+    def __init__(self, args):
+        # =====================================================================
+        #   To use your own trained model for prediction, you must modify weight_path and classes_path!
+        #   weight_path points to the weights file under the logs folder,
+        #       classes_path points to the txt under data folder.
+        #
+        #   After training, there are multiple weight files in the logs folder,
+        #       and you can select the validation set with lower loss.
+        #   The lower loss of the validation set does not mean that the mAP is higher,
+        #       it only means that the weight has better generalization performance on the validation set.
+        #   If the shape does not match, pay attention to the modification of the model_path
+        #       and classes_path parameters during training
+        # =====================================================================
+        self.weight_path = args.weight_path if args.weight_path is not None else 'data/yolov3_coco.h5'
+        self.classes_path = args.classes_path if args.classes_path is not None else 'data/coco_classes.txt'
 
-class BoundBox:
-    def __init__(self, xmin, ymin, xmax, ymax, objness=None, classes=None):
-        self.xmin = xmin
-        self.ymin = ymin
-        self.xmax = xmax
-        self.ymax = ymax
+        # =====================================================================
+        #   anchors_path represents the txt file corresponding to the a priori box, which is generally not modified.
+        #   anchors_mask is used to help the code find the corresponding a priori box and is generally not modified.
+        # =====================================================================
+        self.anchors_path = 'data/yolo_anchors.txt'
+        self.anchors_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
-        self.objness = objness
-        self.classes = classes
+        # =====================================================================
+        #   The size of the input image, which must be a multiple of 32.
+        # =====================================================================
+        self.input_shape = [416, 416]
+        self.input_image_shape = Input([2, ], batch_size=1)
 
-        self.label = -1
-        self.score = -1
+        # =====================================================================
+        #   Only prediction boxes with scores greater than confidence will be kept
+        # =====================================================================
+        self.confidence = 0.5
 
-    def get_label(self):
-        if self.label == -1:
-            self.label = np.argmax(self.classes)
+        # =====================================================================
+        #   nms_iou size used for non-maximum suppression
+        # =====================================================================
+        self.nms_iou = 0.3
+        self.max_boxes = 100
 
-        return self.label
+        # =====================================================================
+        #   This variable is used to control whether to use letterbox_image
+        #       to resize the input image without distortion,
+        #   After many tests, it is found that the direct resize effect of closing letterbox_image is better
+        # =====================================================================
+        self.letterbox_image = True
 
-    def get_score(self):
-        if self.score == -1:
-            self.score = self.classes[self.get_label()]
+        # =====================================================================
+        #   Get the number of kinds and a priori boxes
+        # =====================================================================
+        self.class_names, self.num_classes = get_classes(self.classes_path)
+        self.anchors, self.num_anchors = get_anchors(self.anchors_path)
 
-        return self.score
+        # =====================================================================
+        #   Picture frame set different colors
+        # =====================================================================
+        hsv_tuples = [(x / self.num_classes, 1., 1.) for x in range(self.num_classes)]
+        self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+        self.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), self.colors))
 
+        # =====================================================================
+        #   Create a yolo model
+        # =====================================================================
+        self.model_body = YOLOv3((None, None, 3), self.num_classes)
+        # self.model_body = make_yolov3_model((None, None, 3))
+        # self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
 
-def _interval_overlap(interval_a, interval_b):
-    x1, x2 = interval_a
-    x3, x4 = interval_b
+        # =====================================================================
+        #   Load model weights
+        # =====================================================================
+        weight_path = os.path.join(os.path.dirname(__file__), self.weight_path)
+        assert weight_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        assert os.path.exists(weight_path), 'Keras model or weights file does not exist.'
 
-    if x3 < x1:
-        if x4 < x1:
-            return 0
-        else:
-            return min(x2, x4) - x1
-    else:
-        if x2 < x3:
-            return 0
-        else:
-            return min(x2, x4) - x3
+        self.model_body.load_weights(weight_path, by_name=True, skip_mismatch=True)
+        print('{} model, anchors, and classes loaded.'.format(weight_path))
 
+        # =====================================================================
+        #   In the DecodeBox function, we will post-process the prediction results
+        #   The content of post-processing includes decoding, non-maximum suppression, threshold filtering, etc.
+        # =====================================================================
+        outputs = Lambda(
+            DecodeBox,
+            output_shape=(1,),
+            name='yolo_eval',
+            arguments={
+                'anchors': self.anchors,
+                'num_classes': self.num_classes,
+                'input_shape': self.input_shape,
+                'anchor_mask': self.anchors_mask,
+                'confidence': self.confidence,
+                'nms_iou': self.nms_iou,
+                'max_boxes': self.max_boxes,
+                'letterbox_image': self.letterbox_image
+            }
+        )([*self.model_body.output, self.input_image_shape])
 
-def _sigmoid(x):
-    return 1. / (1. + np.exp(-x))
+        # =====================================================================
+        #   Construct model with DecodeBox layer
+        # =====================================================================
+        #      image                              input_image_shape
+        #    (x,y :RGB)   -------------------->     (2, :Tensor)
+        #        |                                       |
+        #        V                                       |
+        #    image_data                                  |
+        #   (1,416,416,3)                                V
+        #        |          yolo pred (raw)           DecodeBox
+        #        V           (1,13,13,255)     (decoding raw yolo prediction,
+        #    model_body  --> (1,26,26,255) -->   correction of bboxes size,   --> draw image
+        #                    (1,52,52,255)        non maximal suppression)        with bboxes
+        # =====================================================================
+        self.model_decode = Model([self.model_body.input, self.input_image_shape], outputs)
 
+    # =====================================================================
+    #   Preprocess image
+    # =====================================================================
+    def __preprocess_image(self, image):
+        # =====================================================================
+        #   Convert the image to an RGB image here to prevent an error in the prediction of the grayscale image.
+        #   The code only supports prediction of RGB images, all other types of images will be converted to RGB
+        # =====================================================================
+        image = convert2rgb(image)
 
-def bbox_iou(box1, box2):
-    intersect_w = _interval_overlap([box1.xmin, box1.xmax], [box2.xmin, box2.xmax])
-    intersect_h = _interval_overlap([box1.ymin, box1.ymax], [box2.ymin, box2.ymax])
+        # =====================================================================
+        #   Add gray bars to the image to achieve undistorted resize
+        #   You can also directly resize for identification
+        # =====================================================================
+        image_data = resize_image(image, (self.input_shape[1], self.input_shape[0]), self.letterbox_image)
 
-    intersect = intersect_w * intersect_h
+        # =====================================================================
+        #   Normalize the image
+        # =====================================================================
+        image_data = preprocess_input(np.array(image_data, dtype='float32'))
+        return image_data
 
-    w1, h1 = box1.xmax - box1.xmin, box1.ymax - box1.ymin
-    w2, h2 = box2.xmax - box2.xmin, box2.ymax - box2.ymin
+    # =====================================================================
+    #   Draw boxes on input image
+    # =====================================================================
+    def __draw_boxes(self, image, out_boxes, out_scores, out_classes):
+        # =====================================================================
+        #   Set font and border thickness
+        # =====================================================================
+        font = ImageFont.truetype(font='font/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        thickness = int(max((image.size[0] + image.size[1]) // np.mean(self.input_shape), 1))
 
-    union = w1 * h1 + w2 * h2 - intersect
+        # =====================================================================
+        #   Image drawing
+        # =====================================================================
+        for i, c in list(enumerate(out_classes)):
+            predicted_class = self.class_names[int(c)]
+            box = out_boxes[i]
+            score = out_scores[i]
 
-    return float(intersect) / union
+            top, left, bottom, right = box
 
+            top = max(0, np.floor(top).astype('int32'))
+            left = max(0, np.floor(left).astype('int32'))
+            bottom = min(image.size[1], np.floor(bottom).astype('int32'))
+            right = min(image.size[0], np.floor(right).astype('int32'))
 
-def preprocess_input(image, net_h, net_w):
-    new_h, new_w, _ = image.shape
+            label = '{} {:.2f}'.format(predicted_class, score)
+            draw = ImageDraw.Draw(image)
+            label_size = draw.textsize(label, font)
+            label = label.encode('utf-8')
+            print(label, top, left, bottom, right)
 
-    # determine the new size of the image
-    if (float(net_w) / new_w) < (float(net_h) / new_h):
-        new_h = int((new_h * net_w) / new_w)
-        new_w = net_w
-    else:
-        new_w = int((new_w * net_h) / new_h)
-        new_h = net_h
+            if top - label_size[1] >= 0:
+                text_origin = np.array([left, top - label_size[1]])
+            else:
+                text_origin = np.array([left, top + 1])
 
-    # resize the image to the new size
-    resized = cv2.resize(image[:, :, ::-1] / 255., (int(new_w), int(new_h)))
+            for i in range(thickness):
+                draw.rectangle([left + i, top + i, right - i, bottom - i], outline=self.colors[c])
+            draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
+            draw.text(text_origin, str(label, 'UTF-8'), fill=(0, 0, 0), font=font)
+            del draw
+        return image
 
-    # embed the image into the standard letter box
-    new_image = np.ones((net_h, net_w, 3)) * 0.5
-    new_image[int((net_h - new_h) // 2):int((net_h + new_h) // 2), int((net_w - new_w) // 2):int((net_w + new_w) // 2), :] = resized
-    new_image = np.expand_dims(new_image, 0)
+    # =====================================================================
+    #   Detect pictures
+    # =====================================================================
+    def detect_image(self, image):
+        # =====================================================================
+        #   Preprocess image and Add the batch_size dimension
+        # =====================================================================
+        image_data = self.__preprocess_image(image)
 
-    return new_image
+        image_data = np.expand_dims(image_data, 0)
+        input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
 
+        # =====================================================================
+        #   Feed the image into the network to make predictions!
+        # =====================================================================
+        out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
+        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
-def decode_netout(yolos, anchors, anchors_mask, obj_thresh, nms_thresh, net_h, net_w):
-    boxes_all = []
-    for i in range(len(yolos)):
-        netout = yolos[i][0]
-        anchor_list = [int(k) for j in anchors[anchors_mask[i]] for k in j]
-        grid_h, grid_w = netout.shape[:2]
-        nb_box = 3
-        netout = netout.reshape((grid_h, grid_w, nb_box, -1))
-        nb_class = netout.shape[-1] - 5
+        # =====================================================================
+        #   Draw bounding boxes on the image using labels
+        # =====================================================================
+        self.__draw_boxes(image, out_boxes, out_scores, out_classes)
+        return image
 
-        boxes = []
+    # =====================================================================
+    #   Calculate number of image files processed per second
+    # =====================================================================
+    def get_FPS(self, image, test_interval):
+        # =====================================================================
+        #   Preprocess image and Add the batch_size dimension
+        # =====================================================================
+        image_data = self.__preprocess_image(image)
+        image_data = np.expand_dims(image_data, 0)
 
-        netout[..., :2] = _sigmoid(netout[..., :2])
-        netout[..., 4:] = _sigmoid(netout[..., 4:])
-        netout[..., 5:] = netout[..., 4][..., np.newaxis] * netout[..., 5:]
-        netout[..., 5:] *= netout[..., 5:] > obj_thresh
+        # =====================================================================
+        #   Feed the image into the network to make predictions!
+        # =====================================================================
+        input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
+        out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
 
-        for i in range(grid_h * grid_w):
-            row = i / grid_w
-            col = i % grid_w
+        t1 = time.time()
+        for _ in range(test_interval):
+            out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
 
-            for b in range(nb_box):
-                # 4th element is objectness score
-                objectness = netout[int(row)][int(col)][b][4]
-                # objectness = netout[..., :4]
+        t2 = time.time()
+        tact_time = (t2 - t1) / test_interval
+        return tact_time
 
-                if objectness.all() <= obj_thresh:
-                    continue
+    # =====================================================================
+    #   Detect pictures
+    # =====================================================================
+    def get_map_txt(self, image_id, image, class_names, map_out_path):
+        # =====================================================================
+        #   Preprocess image and Add the batch_size dimension
+        # =====================================================================
+        image_data = self.__preprocess_image(image)
+        image_data = np.expand_dims(image_data, 0)
 
-                # first 4 elements are x, y, w, and h
-                x, y, w, h = netout[int(row)][int(col)][b][:4]
+        # =====================================================================
+        #   Feed the image into the network to make predictions!
+        # =====================================================================
+        input_image_shape = np.expand_dims(np.array([image.size[1], image.size[0]], dtype='float32'), 0)
+        out_boxes, out_scores, out_classes = self.model_decode([image_data, input_image_shape])
 
-                x = (col + x) / grid_w  # center position, unit: image width
-                y = (row + y) / grid_h  # center position, unit: image height
-                w = anchor_list[2 * b + 0] * np.exp(w) / net_w  # unit: image width
-                h = anchor_list[2 * b + 1] * np.exp(h) / net_h  # unit: image height
+        f = open(os.path.join(map_out_path, "detection-results/" + image_id + ".txt"), "w")
+        for i, c in enumerate(out_classes):
+            predicted_class = self.class_names[int(c)]
+            try:
+                score = str(out_scores[i].numpy())
+            except:
+                score = str(out_scores[i])
+            top, left, bottom, right = out_boxes[i]
+            if predicted_class not in class_names:
+                continue
 
-                # last elements are class probabilities
-                classes = netout[int(row)][col][b][5:]
+            f.write("%s %s %s %s %s %s\n" % (
+                predicted_class, score[:6], str(int(left)), str(int(top)), str(int(right)), str(int(bottom))))
 
-                box = BoundBox(x - w / 2, y - h / 2, x + w / 2, y + h / 2, objectness, classes)
-                # box = BoundBox(x-w/2, y-h/2, x+w/2, y+h/2, None, classes)
-
-                boxes.append(box)
-
-        boxes_all += boxes
-    return boxes_all
-
-
-def correct_yolo_boxes(boxes, image_h, image_w, net_h, net_w):
-    if (float(net_w) / image_w) < (float(net_h) / image_h):
-        new_w = net_w
-        new_h = (image_h * net_w) / image_w
-    else:
-        new_h = net_w
-        new_w = (image_w * net_h) / image_h
-
-    for i in range(len(boxes)):
-        x_offset, x_scale = (net_w - new_w) / 2. / net_w, float(new_w) / net_w
-        y_offset, y_scale = (net_h - new_h) / 2. / net_h, float(new_h) / net_h
-
-        boxes[i].xmin = int((boxes[i].xmin - x_offset) / x_scale * image_w)
-        boxes[i].xmax = int((boxes[i].xmax - x_offset) / x_scale * image_w)
-        boxes[i].ymin = int((boxes[i].ymin - y_offset) / y_scale * image_h)
-        boxes[i].ymax = int((boxes[i].ymax - y_offset) / y_scale * image_h)
-
-
-def do_nms(boxes, nms_thresh):
-    if len(boxes) > 0:
-        nb_class = len(boxes[0].classes)
-    else:
+        f.close()
         return
-
-    for c in range(nb_class):
-        sorted_indices = np.argsort([-box.classes[c] for box in boxes])
-
-        for i in range(len(sorted_indices)):
-            index_i = sorted_indices[i]
-
-            if boxes[index_i].classes[c] == 0: continue
-
-            for j in range(i + 1, len(sorted_indices)):
-                index_j = sorted_indices[j]
-
-                if bbox_iou(boxes[index_i], boxes[index_j]) >= nms_thresh:
-                    boxes[index_j].classes[c] = 0
-
-
-def draw_boxes(image, boxes, labels, obj_thresh):
-    for box in boxes:
-        label_str = ''
-        label = -1
-
-        for i in range(len(labels)):
-            if box.classes[i] > obj_thresh:
-                label_str += labels[i]
-                label = i
-                print(labels[i] + ': ' + str(box.classes[i] * 100) + '%')
-
-        if label >= 0:
-            cv2.rectangle(image, (box.xmin, box.ymin), (box.xmax, box.ymax), (0, 255, 0), 3)
-            cv2.putText(image,
-                        label_str + ' ' + str(box.get_score()),
-                        (box.xmin, box.ymin - 13),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1e-3 * image.shape[0],
-                        (0, 255, 0), 2)
-
-    return image
 
 
 def _main(args):
-    image_path = args.image_path if args.image_path is not None else "data/apple.jpg"
-    weight_path = "data/yolov3.h5"
+    # =====================================================================
+    #   Create an object of yolo result class
+    # =====================================================================
+    yolo = YoloDecode(args)
 
-    # set some parameters
-    net_h, net_w = 416, 416
-    obj_thresh, nms_thresh = 0.5, 0.45
+    # =====================================================================
+    #   mode is used to specify the mode of the test:
+    #   'predict' means single image prediction. If you want to modify the prediction process, such as saving images,
+    #       intercepting objects, etc., you can read the detailed notes below first.
+    #   'video' means video detection, you can call the camera or video for detection, see the notes below for details.
+    #   'fps' means test fps, the image used is street.jpg in img, see the notes below for details.
+    #   'dir_predict' means to traverse the folder to detect and save. By default, the img folder is traversed and
+    #       the img_out folder is saved. For details, see the notes below.
+    # =====================================================================
+    mode = "predict"
 
-    # =======================================================
-    #   Be sure to modify classes_path before training so that it corresponds to your own dataset
-    # =======================================================
-    classes_path = PATH_CLASSES
+    # =====================================================================
+    #   video_origin_path is used to specify the path of the video, when video_origin_path = 0, it means to detect
+    #       the camera.
+    #   If you want to detect the video, set it as video_origin_path = "xxx.mp4", which means to read the xxx.mp4 file
+    #       in the root directory.
+    #   video_save_path indicates the path where the video is saved, when video_save_path = "" it means not to save.
+    #   If you want to save the video, set it as video_save_path = "yyy.mp4", which means that it will be saved as
+    #       a yyy.mp4 file in the root directory.
+    #   video_fps is the fps of the saved video.
+    #   video_origin_path, video_save_path and video_fps are only valid when mode = 'video'
+    #   When saving the video, you need ctrl+c to exit or run to the last frame to complete the complete save step.
+    # =====================================================================
+    video_origin_path = 0
+    video_save_path = ""
+    video_fps = 25.0
 
-    # =======================================================
-    #   Anchors_path represents the txt file corresponding to the a priori box, which is generally not modified
-    #   Anchors_mask is used to help the code find the corresponding a priori box and is generally not modified
-    # =======================================================
-    anchors_path = PATH_ANCHORS
-    anchors_mask = YOLO_ANCHORS_MASK
-    labels, num_classes = get_classes(classes_path)
-    anchors, num_anchors = get_anchors(anchors_path)
-    # anchors = [[116, 90, 156, 198, 373, 326], [30, 61, 62, 45, 59, 119], [10, 13, 16, 30, 33, 23]]
+    # =====================================================================
+    #   test_interval is used to specify the number of image detections when measuring fps
+    #   In theory, the larger the test_interval, the more accurate the fps.
+    # =====================================================================
+    test_interval = 100
 
-    # make the yolov3 model to predict 80 classes on COCO
-    # yolov3 = YOLOv3((None, None, 3), num_classes)
-    # yolov3 = make_yolov3_model((None, None, 3))
-    yolov3 = yolo_body((None, None, 3), anchors_mask, num_classes)
+    # =====================================================================
+    #   dir_origin_path specifies the folder path of the image used for detection
+    #   dir_save_path specifies the save path of the detected image
+    #   dir_origin_path and dir_save_path are only valid when mode = 'dir_predict'
+    # =====================================================================
+    dir_origin_path = "img/"
+    dir_save_path = "img_out/"
 
-    # run model summary
-    # yolov3.summary()
+    # =====================================================================
+    #   If you want to save the detected image, use image_out.save("img.jpg") to save it, and modify it directly in
+    #       predict.py.
+    #   If you want to get the coordinates of the prediction frame, you can enter the yolo.detect_image function and
+    #       read the four values of top, left, bottom, and right in the drawing part.
+    #   If you want to use the prediction frame to intercept the target, you can enter the yolo.detect_image function,
+    #       and use the obtained four values of top, left, bottom, and right in the drawing part.
+    #   Use the matrix method to intercept the original image.
+    #   If you want to write extra words on the prediction map, such as the number of specific targets detected,
+    #       you can enter the yolo.detect_image function and judge the predicted_class in the drawing part,
+    #       For example, judging if predicted_class == 'car': can judge whether the current target is a car,
+    #       and then record the number. Use draw.text to write.
+    # =====================================================================
+    if mode == "predict":
+        import os
+        image_path = args.image_path if args.image_path is not None else "data/sample/apple.jpg"
+        image = Image.open(os.path.join(os.path.dirname(__file__), image_path))
+        image_out = yolo.detect_image(image)
+        image_out.show()
 
-    # load the darknet weights trained on COCO into the model
-    weight_path = os.path.join(os.path.dirname(__file__), weight_path)
-    assert weight_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+    elif mode == "video":
+        capture = cv2.VideoCapture(video_origin_path)
+        if video_save_path != "":
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            size = (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+            out = cv2.VideoWriter(video_save_path, fourcc, video_fps, size)
 
-    yolov3.load_weights(weight_path, by_name=True, skip_mismatch=True)
-    print('{} model, anchors, and classes loaded.'.format(weight_path))
+        ref, frame = capture.read()
+        if not ref:
+            raise ValueError("The camera (video) cannot be read correctly, please pay attention to whether the camera"
+                             "is installed correctly (whether the video path is correctly filled in).")
 
-    # preprocess the image
-    image_path = os.path.join(os.path.dirname(__file__), image_path)
-    image = cv2.imread(image_path)
-    image_h, image_w, _ = image.shape
-    new_image = preprocess_input(image, net_h, net_w)
+        fps = 0.0
+        while True:
+            t1 = time.time()
+            # read a frame
+            ref, frame = capture.read()
+            if not ref:
+                break
+            # format conversion, BGRtoRGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # convert to Image
+            frame = Image.fromarray(np.uint8(frame))
+            # test
+            frame = np.array(yolo.detect_image(frame))
+            # RGBtoBGR meets the opencv display format
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-    # run the prediction
-    yolos = yolov3.predict(new_image)
+            fps = (fps + (1. / (time.time() - t1))) / 2
+            print("fps= %.2f" % (fps))
+            frame = cv2.putText(frame, "fps= %.2f" % (fps), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    # decode the output of the network
-    boxes = decode_netout(yolos, anchors, anchors_mask, obj_thresh, nms_thresh, net_h, net_w)
+            cv2.imshow("video", frame)
+            c = cv2.waitKey(1) & 0xff
+            if video_save_path != "":
+                out.write(frame)
 
-    # correct the sizes of the bounding boxes
-    correct_yolo_boxes(boxes, image_h, image_w, net_h, net_w)
+            if c == 27:
+                capture.release()
+                break
 
-    # suppress non-maximal boxes
-    do_nms(boxes, nms_thresh)
+        print("Video Detection Done!")
+        capture.release()
+        if video_save_path != "":
+            print("Save processed video to the path :" + video_save_path)
+            out.release()
+        cv2.destroyAllWindows()
 
-    # draw bounding boxes on the image using labels
-    draw_boxes(image, boxes, labels, obj_thresh)
+    elif mode == "fps":
+        img = Image.open('data/fruits.webp')
+        tact_time = yolo.get_FPS(img, test_interval)
+        print(str(tact_time) + ' seconds, ' + str(1 / tact_time) + 'FPS, @batch_size 1')
 
-    # write the image with bounding boxes to file
-    cv2.imwrite(image_path.split('.')[0] + '_detected.jpg', image.astype('uint8'))
+    elif mode == "dir_predict":
+        import os
+        img_names = os.listdir(dir_origin_path)
+        for img_name in tqdm(img_names):
+            if img_name.lower().endswith(
+                    ('.bmp', '.dib', '.png', '.jpg', '.jpeg', '.pbm', '.pgm', '.ppm', '.tif', '.tiff')):
+                image_path = os.path.join(dir_origin_path, img_name)
+                image = Image.open(image_path)
+                image_out = yolo.detect_image(image)
+                if not os.path.exists(dir_save_path):
+                    os.makedirs(dir_save_path)
+                image_out.save(os.path.join(dir_save_path, img_name))
 
-    print("Completed")
+    else:
+        raise AssertionError("Please specify the correct mode: 'predict', 'video', 'fps' or 'dir_predict'.")
 
 
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
     # python predict.py [-i] <image_path>
+    # python predict.py -w data/yolov3_license.h5 -c data/license_classes.txt -i data/sample/license.jpg
+    # python predict.py -w data/yolov3_coco.h5 -c data/coco_classes.txt -i data/sample/apple.jpg
     _main(parser.parse_args())
+
