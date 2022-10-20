@@ -10,11 +10,11 @@ from model_keras_yolo3.yolo import make_yolov3_model
 from model_yolo3_tf2.yolo import yolo_body
 from model.model_functional import YOLOv3
 
-from loss.loss_functional import yolo_loss
 # from model_yolo3_tf2.yolo_training import yolo_loss
+from loss.loss_functional import yolo_loss
 
-from dataloader.dataloader import YoloDataGenerator, YoloAnnotationPairs
 # from model_yolo3_tf2.dataloader import YoloDataGenerator, YoloAnnotationPairs
+from dataloader.dataloader import YoloDataGenerator, YoloAnnotationPairs
 
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
@@ -262,9 +262,9 @@ def _main():
         # =======================================================
         #   Annotation pairs
         # =======================================================
-        train_annotation_pairs = YoloAnnotationPairs(train_annot_path)
+        train_annotation_pairs = YoloAnnotationPairs(train_annot_path, 'train')
         if val_using == "VAL":
-            val_annotation_pairs = YoloAnnotationPairs(val_annot_path)
+            val_annotation_pairs = YoloAnnotationPairs(val_annot_path, 'val')
         if val_using == "TRAIN":
             val_annotation_pairs = random.sample(train_annotation_pairs, int(len(train_annotation_pairs) * val_split))
             train_annotation_pairs = [pair for pair in train_annotation_pairs if pair not in val_annotation_pairs]
@@ -273,10 +273,10 @@ def _main():
         #   Data loaders
         # =======================================================
         train_dataloader = YoloDataGenerator(train_annotation_pairs, image_shape, anchors, train_freeze_batch_size,
-                                             num_classes, anchors_mask, do_aug=False)
+                                             class_names, num_classes, anchors_mask, do_aug=False)
         if val_using == "VAL" or val_using == "TRAIN":
             val_dataloader = YoloDataGenerator(val_annotation_pairs, image_shape, anchors, val_batch_size,
-                                               num_classes, anchors_mask, do_aug=False)
+                                               class_names, num_classes, anchors_mask, do_aug=False)
 
         # =======================================================
         #   Model fit
