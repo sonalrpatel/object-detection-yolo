@@ -18,7 +18,7 @@ def read_lines(path):
     return lines
 
 
-def YoloAnnotationPairs(annotation_path, mode):
+def YoloAnnotationPairs(annot_path, data_path):
     """
     Load annotations
     Customize this function as per your dataset
@@ -29,13 +29,13 @@ def YoloAnnotationPairs(annotation_path, mode):
                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
          ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
     """""
-    with open(annotation_path) as f:
+    with open(annot_path) as f:
         json_data = json.load(f)
 
     annot_pairs = []
     for annot in tqdm(json_data):
         if 'labels' in annot.keys():
-            img_path = '/'.join((annotation_path.rsplit('/', 1)[0], mode, annot['name']))
+            img_path = '/'.join((data_path, annot['name']))
             if os.path.exists(img_path):
                 img_labels = annot["labels"]
                 bboxes = []

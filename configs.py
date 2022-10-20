@@ -30,7 +30,7 @@ IMAGE_SIZE = (416, 416)
 # DIR_DATA is filled as a list to consider multiple dataset folders at the same time
 DIR_DATA = "data/bdd100k/"
 DIR_TRAIN = DIR_DATA + "train/"
-DIR_VALID = DIR_DATA + "val/"
+DIR_VAL = DIR_DATA + "val/"
 DIR_TEST = DIR_DATA + "test/"
 PATH_CLASSES = DIR_DATA + "bdd_classes.txt"
 PATH_ANCHORS = "model_data/yolo_anchors.txt"

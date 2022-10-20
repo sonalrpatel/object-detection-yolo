@@ -18,6 +18,7 @@ from dataloader.dataloader import YoloDataGenerator, YoloAnnotationPairs
 
 from utils.callbacks import ExponentDecayScheduler, LossHistory, ModelCheckpoint
 from utils.utils import *
+from utils.utils_metric import box_iou
 from configs import *
 
 # =======================================================
@@ -257,14 +258,16 @@ def _main():
         # =======================================================
         #   Model compile
         # =======================================================
-        model.compile(optimizer=Adam(learning_rate=freeze_lr), loss={'yolo_loss': lambda y_true, y_pred: y_pred})
+        model.compile(optimizer=Adam(learning_rate=freeze_lr),
+                      loss={'yolo_loss': lambda y_true, y_pred: y_pred},
+                      metrics=['accuracy', box_iou])
 
         # =======================================================
         #   Annotation pairs
         # =======================================================
-        train_annotation_pairs = YoloAnnotationPairs(train_annot_path, 'train')
+        train_annotation_pairs = YoloAnnotationPairs(train_annot_path, DIR_TRAIN)
         if val_using == "VAL":
-            val_annotation_pairs = YoloAnnotationPairs(val_annot_path, 'val')
+            val_annotation_pairs = YoloAnnotationPairs(val_annot_path, DIR_VAL)
         if val_using == "TRAIN":
             val_annotation_pairs = random.sample(train_annotation_pairs, int(len(train_annotation_pairs) * val_split))
             train_annotation_pairs = [pair for pair in train_annotation_pairs if pair not in val_annotation_pairs]
