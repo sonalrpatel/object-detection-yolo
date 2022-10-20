@@ -34,10 +34,10 @@ def load_img_bboxes_pairs(annotation_path):
 if __name__ == "__main__":
     DIR_DATA = ["data/fruits/", "data/demo/"]
     DIR_TRAIN = [d + "train/" for d in DIR_DATA]
-    DIR_VALID = [d + "valid/" for d in DIR_DATA]
+    DIR_VALID = [d + "val/" for d in DIR_DATA]
     DIR_TEST = [d + "test/" for d in DIR_DATA]
-    PATH_CLASSES = DIR_TRAIN[0] + "_classes.txt"
-    TRAIN_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_TRAIN]
+    PATH_CLASSES = DIR_TRAIN[0] + "demo_classes.txt"
+    TRAIN_ANNOT_PATH = [d + "train_annotations.txt" for d in DIR_TRAIN]
 
     pairs = load_img_bboxes_pairs(TRAIN_ANNOT_PATH)
 

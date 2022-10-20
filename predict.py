@@ -62,7 +62,7 @@ class YoloDecode(object):
         #   anchors_path represents the txt file corresponding to the a priori box, which is generally not modified.
         #   anchors_mask is used to help the code find the corresponding a priori box and is generally not modified.
         # =====================================================================
-        self.anchors_path = 'data/yolo_anchors.txt'
+        self.anchors_path = 'model_data/yolo_anchors.txt'
         self.anchors_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
 
         # =====================================================================
