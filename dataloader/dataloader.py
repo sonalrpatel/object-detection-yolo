@@ -135,7 +135,7 @@ class YoloDataGenerator(keras.utils.Sequence):
             image_data = np.array(new_image, np.float32)
 
             # =======================================
-            #   Adjust the real box
+            #   Adjust the real box relative to the image size to be used for training
             # =======================================
             box_data = np.zeros((max_boxes, 5))
             if len(box) > 0:
