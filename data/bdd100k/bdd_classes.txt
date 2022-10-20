@@ -8,3 +8,6 @@ motorcycle
 bicycle
 traffic light
 traffic sign
+other vehicle
+trailer
+other person

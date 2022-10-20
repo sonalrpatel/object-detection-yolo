@@ -52,7 +52,8 @@ def get_classes(class_file_name):
     with open(class_file_name, 'r') as data:
         for ID, name in enumerate(data):
             class_names[ID] = name.strip('\n')
-    return class_names, len(class_names)
+            class_names[name.strip('\n')] = ID
+    return class_names, int(len(class_names) / 2)
 
 
 def get_anchors(anchors_path):

@@ -27,22 +27,22 @@ YOLO_LAYER_WITH_NAMES = True
 IMAGE_SIZE = (416, 416)
 
 # Dataset
-# DIR_DATA is filled as a list so as to consider multiple dataset folders at the same time
-DIR_DATA = ["data/fruits/"]
-DIR_TRAIN = [d + "train/" for d in DIR_DATA]
-DIR_VALID = [d + "valid/" for d in DIR_DATA]
-DIR_TEST = [d + "test/" for d in DIR_DATA]
-PATH_CLASSES = DIR_TRAIN[0] + "_classes.txt"
-PATH_ANCHORS = "data/yolo_anchors.txt"
-PATH_WEIGHT = "data/yolov3_coco.h5"
-PATH_DARKNET_WEIGHT = "data/yolov3.weights"
+# DIR_DATA is filled as a list to consider multiple dataset folders at the same time
+DIR_DATA = "data/bdd100k/"
+DIR_TRAIN = DIR_DATA + "train/"
+DIR_VALID = DIR_DATA + "val/"
+DIR_TEST = DIR_DATA + "test/"
+PATH_CLASSES = DIR_DATA + "bdd_classes.txt"
+PATH_ANCHORS = "model_data/yolo_anchors.txt"
+PATH_WEIGHT = "model_data/yolov3_coco.h5"
+PATH_DARKNET_WEIGHT = "model_data/yolov3.weights"
 
 # TRAIN options
 TRAIN_YOLO_TINY = False
 TRAIN_SAVE_BEST_ONLY = True  # saves only best model according validation loss (True recommended)
 TRAIN_SAVE_CHECKPOINT = False  # saves all validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOGDIR = "log"
-TRAIN_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_TRAIN]
+TRAIN_ANNOT_PATH = DIR_DATA + "det_train.json"
 TRAIN_CHECKPOINTS_FOLDER = "checkpoints"
 TRAIN_MODEL_NAME = f"{YOLO_TYPE}_custom"
 TRAIN_FROM_CHECKPOINT = False
@@ -58,14 +58,14 @@ TRAIN_FREEZE_END_EPOCH = 20
 TRAIN_UNFREEZE_END_EPOCH = 40  # note that it is considered when TRAIN_FREEZE_BODY is True
 
 # VAL options
-VAL_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_VALID]
+VAL_ANNOT_PATH = DIR_DATA + "det_val.json"
 VAL_DATA_AUG = False
 VAL_BATCH_SIZE = 16
-VAL_VALIDATION_USING = "VAL"  # note that when validation data does not exist, set it to TRAIN or None
+VAL_VALIDATION_USING = "TRAIN"  # note that when validation data does not exist, set it to TRAIN or None
 VAL_VALIDATION_SPLIT = 0.2  # note that it will be used when VAL_VALIDATION_USING is TRAIN
 
 # TEST options
-TEST_ANNOT_PATH = [d + "_annotations.txt" for d in DIR_TEST]
+TEST_ANNOT_PATH = DIR_DATA + "det_test.json"
 TEST_BATCH_SIZE = 16
 TEST_DATA_AUG = False
 TEST_DETECTED_IMAGE_PATH = ""

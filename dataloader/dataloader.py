@@ -1,5 +1,10 @@
+import os
 import math
 import cv2
+import json
+
+import numpy as np
+from tqdm import tqdm
 from random import shuffle
 from tensorflow import keras
 
@@ -13,7 +18,7 @@ def read_lines(path):
     return lines
 
 
-def YoloAnnotationPairs(annotation_path):
+def YoloAnnotationPairs(annotation_path, mode):
     """
     Load annotations
     Customize this function as per your dataset
@@ -24,28 +29,45 @@ def YoloAnnotationPairs(annotation_path):
                                                            [0.529, 0.856, 0.125, 0.435, 4.0]]]
          ['.../00_Datasets/PASCAL_VOC/images/000008.jpg', [[0.369, 0.657, 0.871, 0.480, 3.0]]]]
     """""
-    annotation_pairs = []
-    for path in annotation_path:
-        lines = read_lines(path)
-        pairs = [[path.rsplit('/', 1)[0] + '/' + line.split()[0],
-                  np.array([list(map(int, box.split(','))) for box in line.split()[1:]])]
-                 for line in lines]
-        annotation_pairs.extend(pairs)
-    return annotation_pairs
+    with open(annotation_path) as f:
+        json_data = json.load(f)
+
+    annot_pairs = []
+    for annot in tqdm(json_data):
+        if 'labels' in annot.keys():
+            img_path = '/'.join((annotation_path.rsplit('/', 1)[0], mode, annot['name']))
+            if os.path.exists(img_path):
+                img_labels = annot["labels"]
+                bboxes = []
+                for label in img_labels:
+                    category = label["category"]
+                    bbox = label["box2d"]
+                    bboxes.append([round(bbox['x1']), round(bbox['y1']), round(bbox['x2']), round(bbox['y2']), category])
+                annot_pairs.append([img_path, bboxes])
+
+    return annot_pairs
 
 
 class YoloDataGenerator(keras.utils.Sequence):
-    def __init__(self, annotation_pairs, input_shape, anchors, batch_size, num_classes, anchors_mask, do_aug):
+    def __init__(self, annotation_pairs, input_shape, anchors, batch_size, class_names, num_classes,
+                 anchors_mask, do_aug):
         self.annotation_pairs = annotation_pairs
         self.input_shape = input_shape
         self.batch_size = batch_size
         self.anchors = anchors
         self.anchors_mask = anchors_mask
+        self.class_names = class_names
         self.num_classes = num_classes
         self.num_samples = len(self.annotation_pairs)
         self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.num_scales = len(self.anchors_mask)
         self.do_aug = do_aug
+
+        # convert categories into number and bboxes list into array
+        for pair in tqdm(self.annotation_pairs):
+            for box in pair[1]:
+                box[4] = self.class_names[box[4]]
+            pair[1] = np.array(pair[1])
 
     def __len__(self):
         """
@@ -207,14 +229,16 @@ class YoloDataGenerator(keras.utils.Sequence):
             np.random.shuffle(box)
             box[:, [0, 2]] = box[:, [0, 2]] * nw / iw + dx
             box[:, [1, 3]] = box[:, [1, 3]] * nh / ih + dy
-            if flip: box[:, [0, 2]] = w - box[:, [2, 0]]
+            if flip:
+                box[:, [0, 2]] = w - box[:, [2, 0]]
             box[:, 0:2][box[:, 0:2] < 0] = 0
             box[:, 2][box[:, 2] > w] = w
             box[:, 3][box[:, 3] > h] = h
             box_w = box[:, 2] - box[:, 0]
             box_h = box[:, 3] - box[:, 1]
             box = box[np.logical_and(box_w > 1, box_h > 1)]  # discard invalid box
-            if len(box) > max_boxes: box = box[:max_boxes]
+            if len(box) > max_boxes:
+                box = box[:max_boxes]
             box_data[:len(box)] = box
 
         return image_data, box_data
@@ -240,7 +264,7 @@ class YoloDataGenerator(keras.utils.Sequence):
 
         # =======================================
         #   self.batch_size -> number of images
-        #   y_true -> [(m,13,13,3,85),(m,26,26,3,85),(m,52,52,3,85)]
+        #   y_true -> [(m,13,13,3,85), (m,26,26,3,85), (m,52,52,3,85)]
         # =======================================
         # [num_scales][batch_size x (grid_shape_0 x grid_shape_1) x num_anchors_per_scale x (5 + num_classes)]
         y_true = [np.zeros((self.batch_size, grid_shapes[s][0], grid_shapes[s][1], len(self.anchors_mask[s]),
