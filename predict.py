@@ -10,6 +10,7 @@ import colorsys
 import argparse
 from tqdm import tqdm
 from PIL import ImageDraw, ImageFont
+from access_dict_by_dot import AccessDictByDot
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.models import Model
 
@@ -83,8 +84,7 @@ class YoloDecode(object):
         self.max_boxes = 100
 
         # =====================================================================
-        #   This variable is used to control whether to use letterbox_image
-        #       to resize the input image without distortion,
+        #   This variable is used to control whether to use letterbox_image to resize the input image w/o distortion
         #   After many tests, it is found that the direct resize effect of closing letterbox_image is better
         # =====================================================================
         self.letterbox_image = True
@@ -105,9 +105,9 @@ class YoloDecode(object):
         # =====================================================================
         #   Create a yolo model
         # =====================================================================
-        self.model_body = YOLOv3((None, None, 3), self.num_classes)
         # self.model_body = make_yolov3_model((None, None, 3))
         # self.model_body = yolo_body((None, None, 3), self.anchors_mask, self.num_classes)
+        self.model_body = YOLOv3((None, None, 3), self.num_classes)
 
         # =====================================================================
         #   Load model weights
@@ -184,7 +184,7 @@ class YoloDecode(object):
         # =====================================================================
         #   Set font and border thickness
         # =====================================================================
-        font = ImageFont.truetype(font='font/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        font = ImageFont.truetype(font='model_data/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
         thickness = int(max((image.size[0] + image.size[1]) // np.mean(self.input_shape), 1))
 
         # =====================================================================
@@ -442,7 +442,17 @@ def _main(args):
 if __name__ == '__main__':
     # run following command (as per current folder structure) on terminal
     # python predict.py [-i] <image_path>
-    # python predict.py -w data/yolov3_license.h5 -c data/license_classes.txt -i data/sample/license.jpg
-    # python predict.py -w data/yolov3_coco.h5 -c data/coco_classes.txt -i data/sample/apple.jpg
-    _main(parser.parse_args())
+    # python predict.py -w model_data/yolov3_license.h5 -c model_data/license_classes.txt -i model_data/sample/license.jpg
+    # python predict.py -w model_data/yolov3_coco.h5 -c model_data/coco_classes.txt -i model_data/sample/apple.jpg
+    # python predict.py -w model_data/ep020.h5 -c data/bdd100k/bdd_classes.txt -i data/bdd100k/train/ac6e638d-7c84846d.jpg
 
+    dictionary = {
+        'weight_path': "model_data/ep020.h5",
+        'classes_path': "data/bdd100k/bdd_classes.txt",
+        'image_path': "data/bdd100k/train/ac6e638d-7c84846d.jpg"
+    }
+
+    args = AccessDictByDot.load(dictionary)
+
+    _main(args)
+    # _main(parser.parse_args())

@@ -8,7 +8,7 @@ from tensorflow.keras import backend as K
 # ==============================================================
 def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image):
     # ==============================================================
-    # revers y ans h to first dimension
+    # reverse y ans h to first dimension
     # ==============================================================
     box_yx = box_xy[..., ::-1]
     box_hw = box_wh[..., ::-1]
@@ -204,7 +204,7 @@ def DecodeBox(outputs,  # raw outputs from YoloV3
     box_class_probs = K.concatenate(box_class_probs, axis=0)
 
     # ==============================================================
-    #   Before image pass into Yolo network there is a pre-process method letter_box_image will padding gray points
+    #   Before image pass into Yolo network there is a pre-process method letter_box_image will be padding gray points
     #       around image if size is not enough.
     #   So predicted box_xy, box_wh need to be adjusted to align with previous image and convert to Xmin, Ymin and
     #       Xmax, Ymax format.
